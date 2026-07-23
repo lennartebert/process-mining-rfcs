@@ -1,0 +1,22 @@
+name: rfcs-in-pm
+channels:
+  - conda-forge
+dependencies:
+  # Python
+  - python=3.10
+  - pip
+  - numpy=1.24.*
+  - pandas=1.5.*
+  - matplotlib=3.6.*
+  - graphviz
+  - scipy=1.10.*
+  - mpmath
+  - jinja2
+  - pyyaml
+
+  # PM4Py (pip-only)
+  - pip:
+      - pm4py==2.4.1
+      - jupyter
+      - ipywidgets
+      - powerlaw
