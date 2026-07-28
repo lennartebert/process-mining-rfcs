@@ -5,9 +5,10 @@ Pipeline order:
 2) extract_attachments.py (unless --skip-extract)
 3) rfc_powerlaw_analysis.py (unless --skip-static)
 4) pdf_powerlaw_analysis.py (optional, via --run-pdf)
-5) dynamic_rfc_analysis.py (optional, via --run-dynamic)
-6) alpha_correlationy.py (optional, via --run-alpha-correlation)
-7) integrity_checks.py (always last)
+5) powerlaw_statistical_tests.py (optional, via --run-statistical-tests)
+6) dynamic_rfc_analysis.py (optional, via --run-dynamic)
+7) alpha_correlationy.py (optional, via --run-alpha-correlation)
+8) integrity_checks.py (always last)
 """
 
 import argparse
@@ -113,6 +114,17 @@ def parse_args() -> argparse.Namespace:
         help="Run optional PDF power-law stage (default: off)",
     )
     parser.add_argument(
+        "--run-statistical-tests",
+        action="store_true",
+        help="Run optional Clauset-style power-law statistical tests (default: off)",
+    )
+    parser.add_argument(
+        "--n-bootstraps",
+        type=int,
+        default=1000,
+        help="Bootstrap iterations for --run-statistical-tests (default: 1000)",
+    )
+    parser.add_argument(
         "--run-dynamic",
         action="store_true",
         help="Run optional dynamic RFC stage (default: off)",
@@ -206,6 +218,37 @@ def main() -> None:
                 ]
                 print(f"$ {' '.join(['python', 'scripts/pdf_powerlaw_analysis.py', *pdf_argv])}")
                 pdf_powerlaw_analysis.main(pdf_argv)
+
+    if args.run_statistical_tests:
+        try:
+            from scripts import powerlaw_statistical_tests
+        except ModuleNotFoundError as exc:
+            if exc.name == "powerlaw":
+                print(
+                    "Warning: skipping powerlaw_statistical_tests stage because "
+                    "the 'powerlaw' package is not installed."
+                )
+            else:
+                raise
+        else:
+            statistical_inputs = _build_attachment_inputs(
+                datasets, output_dir, args.concept
+            )
+            statistical_argv = [
+                "--inputs",
+                *statistical_inputs,
+                "--analysis-name",
+                analysis_name,
+                "--concept-name",
+                args.concept,
+                "--n-bootstraps",
+                str(args.n_bootstraps),
+                *output_args,
+            ]
+            print(
+                f"$ {' '.join(['python', 'scripts/powerlaw_statistical_tests.py', *statistical_argv])}"
+            )
+            powerlaw_statistical_tests.main(statistical_argv)
 
     if args.run_dynamic:
         from scripts import dynamic_rfc_analysis

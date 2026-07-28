@@ -21,7 +21,7 @@ Utilities and CLI workflows for rank-frequency-curve (RFC) analysis in process m
 ```bash
 # 1) create environment
 conda env create -f environment.yml
-conda activate rfcs-in-pm
+conda activate process-mining-rfcs
 
 # 2) run the default pipeline (log info + extract attachments + static RFC)
 python main.py --datasets TEST_BPIC12 --concept variants
@@ -30,12 +30,15 @@ python main.py --datasets TEST_BPIC12 --concept variants
 If you want to (re)calculate attachments from raw logs, place your `.xes` files under `data/`, create a copy of the data dictionary (to be placed `data/data_dictionary.json`) and ensure refer to the data sets in the dictionary.
 If `results/.../attachments.csv.gz` already exists, extraction is skipped by default.
 
-You can also run the simulation notebooks:
+You can also run the analysis/simulation notebooks:
 
 ```bash
+jupyter notebook analyze_powerlaw_single_log.ipynb
 jupyter notebook interactive_simulation_experiments.ipynb
 jupyter notebook preset_simulation_experiments.ipynb
 ```
+
+Use the `process-mining-rfcs` Jupyter kernel for these notebooks.
 
 ## Repository structure
 
@@ -75,6 +78,7 @@ Default `main.py` stages:
 Optional stages are opt-in:
 
 - `--run-pdf` enables `scripts/pdf_powerlaw_analysis.py`
+- `--run-statistical-tests` enables `scripts/powerlaw_statistical_tests.py`
 - `--run-dynamic` enables `scripts/dynamic_rfc_analysis.py`
 - `--run-alpha-correlation` enables `scripts/alpha_correlationy.py`
 
@@ -86,6 +90,9 @@ python main.py --datasets TEST_BPIC12 --concept variants
 
 # include PDF stage
 python main.py --datasets TEST_BPIC12 --concept variants --run-pdf
+
+# include Clauset-style statistical tests (writes results/statistical_tests/<concept>/)
+python main.py --datasets TEST_BPIC12 --concept variants --run-statistical-tests
 
 # include both optional stages
 python main.py --datasets TEST_BPIC12 --concept variants --run-pdf --run-dynamic
@@ -101,6 +108,7 @@ Individual script entrypoints:
 python scripts/extract_attachments.py --help
 python scripts/rfc_powerlaw_analysis.py --help
 python scripts/pdf_powerlaw_analysis.py --help
+python scripts/powerlaw_statistical_tests.py --help
 python scripts/dynamic_rfc_analysis.py --help
 python scripts/log_info.py --help
 python scripts/alpha_correlationy.py --help
