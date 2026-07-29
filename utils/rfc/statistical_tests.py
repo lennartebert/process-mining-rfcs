@@ -10,10 +10,46 @@ import powerlaw
 
 DEFAULT_ALTERNATIVES: list[tuple[str, bool]] = [
     ("lognormal", False),
+    ("lognormal_positive", False),
     ("exponential", False),
     ("stretched_exponential", False),
     ("truncated_power_law", True),
 ]
+BASE_MODEL_CANDIDATES = ("power_law", "truncated_power_law")
+
+
+def _extract_model_fit_stats(
+    fit: powerlaw.Fit,
+    model_name: str,
+    frequencies: np.ndarray,
+    n_cases: int,
+    n_variants: int,
+) -> dict[str, Any]:
+    """Extract per-model fit statistics with model-name-prefixed keys."""
+    prefix = f"{model_name}_"
+    model = getattr(fit, model_name)
+    alpha = float(getattr(model, "alpha", np.nan))
+    xmin = float(getattr(model, "xmin", np.nan))
+    ks_d = float(getattr(model, "D", np.nan))
+
+    n_fitted_variants = np.nan
+    fitted_variant_share = np.nan
+    fitted_case_share = np.nan
+    if np.isfinite(xmin):
+        fitted_mask = frequencies >= xmin
+        n_fitted_variants = int(np.sum(fitted_mask))
+        n_fitted_cases = int(frequencies[fitted_mask].sum())
+        fitted_variant_share = n_fitted_variants / n_variants
+        fitted_case_share = n_fitted_cases / n_cases
+
+    return {
+        f"{prefix}alpha": alpha,
+        f"{prefix}xmin": xmin,
+        f"{prefix}KS_D": ks_d,
+        f"{prefix}n_fitted_variants": n_fitted_variants,
+        f"{prefix}fitted_variant_share": fitted_variant_share,
+        f"{prefix}fitted_case_share": fitted_case_share,
+    }
 
 
 def validate_frequency_series(
@@ -111,50 +147,34 @@ def fit_discrete_power_law(frequencies: np.ndarray) -> dict[str, Any]:
     n_variants = int(frequencies.size)
 
     fit = powerlaw.Fit(frequencies, discrete=True, verbose=False)
-    alpha = float(fit.power_law.alpha)
-    xmin = float(fit.power_law.xmin)
-    ks_d = float(fit.power_law.D)
-
-    fitted_mask = frequencies >= xmin
-    n_fitted_variants = int(np.sum(fitted_mask))
-    n_fitted_cases = int(frequencies[fitted_mask].sum())
+    power_law_stats = _extract_model_fit_stats(
+        fit, "power_law", frequencies, n_cases=n_cases, n_variants=n_variants
+    )
+    truncated_stats = _extract_model_fit_stats(
+        fit, "truncated_power_law", frequencies, n_cases=n_cases, n_variants=n_variants
+    )
+    model_stats = {**power_law_stats, **truncated_stats}
 
     return {
         "fit": fit,
-        "alpha": alpha,
-        "xmin": xmin,
-        "KS_D": ks_d,
-        "n_fitted_variants": n_fitted_variants,
-        "fitted_variant_share": n_fitted_variants / n_variants,
-        "n_fitted_cases": n_fitted_cases,
-        "fitted_case_share": n_fitted_cases / n_cases,
-        "summary": pd.DataFrame(
-            [
-                {
-                    "alpha": alpha,
-                    "xmin": xmin,
-                    "KS_D": ks_d,
-                    "n_fitted_variants": n_fitted_variants,
-                    "fitted_variant_share": n_fitted_variants / n_variants,
-                    "n_fitted_cases": n_fitted_cases,
-                    "fitted_case_share": n_fitted_cases / n_cases,
-                }
-            ]
-        ),
+        **model_stats,
+        "summary": pd.DataFrame([model_stats]),
     }
 
 
-def interpret_comparison(r_value: float, p_value: float, alternative: str) -> str:
+def interpret_comparison(
+    r_value: float, p_value: float, model_1: str, model_2: str
+) -> str:
     """Return a short interpretation of one powerlaw.distribution_compare result."""
     if not np.isfinite(r_value) or not np.isfinite(p_value):
         return "comparison failed"
 
     if p_value >= 0.10:
         direction = (
-            "power law numerically favored"
+            f"{model_1} numerically favored"
             if r_value > 0
             else (
-                f"{alternative} numerically favored"
+                f"{model_2} numerically favored"
                 if r_value < 0
                 else "no numerical preference"
             )
@@ -162,20 +182,20 @@ def interpret_comparison(r_value: float, p_value: float, alternative: str) -> st
         return f"inconclusive ({direction})"
 
     if r_value > 0:
-        return "power law favored (distinguishable)"
+        return f"{model_1} favored (distinguishable)"
     if r_value < 0:
-        return f"{alternative} favored (distinguishable)"
+        return f"{model_2} favored (distinguishable)"
     return "no preference (distinguishable tie)"
 
 
-def preferred_model_label(r_value: float, alternative: str) -> str:
+def preferred_model_label(r_value: float, model_1: str, model_2: str) -> str:
     """Map the sign of R to a preferred-model label."""
     if not np.isfinite(r_value):
         return "unavailable"
     if r_value > 0:
-        return "power_law"
+        return model_1
     if r_value < 0:
-        return alternative
+        return model_2
     return "tie"
 
 
@@ -184,60 +204,145 @@ def compare_power_law_alternatives(
     log_name: str,
     alternatives: list[tuple[str, bool]] | None = None,
 ) -> pd.DataFrame:
-    """Compare a fitted power law against common alternative distributions."""
+    """Compare power-law-family candidates against common alternatives."""
     if alternatives is None:
         alternatives = DEFAULT_ALTERNATIVES
 
+    model_1_candidates = BASE_MODEL_CANDIDATES
     comparison_rows: list[dict[str, Any]] = []
-    for alternative, nested in alternatives:
-        try:
-            r_value, p_value = fit.distribution_compare(
-                "power_law",
-                alternative,
-                nested=nested,
-            )
-            r_value = float(r_value)
-            p_value = float(p_value)
-        except Exception:
-            r_value = float("nan")
-            p_value = float("nan")
+    for model_1 in model_1_candidates:
+        for model_2, nested in alternatives:
+            if model_1 == model_2:
+                continue
 
-        comparison_rows.append(
-            {
-                "log_name": log_name,
-                "model_1": "power_law",
-                "model_2": alternative,
-                "R": r_value,
-                "p": p_value,
-                "preferred_model": preferred_model_label(r_value, alternative),
-                "interpretation": interpret_comparison(r_value, p_value, alternative),
-            }
-        )
+            try:
+                r_value, p_value = fit.distribution_compare(
+                    model_1,
+                    model_2,
+                    nested=nested,
+                )
+                r_value = float(r_value)
+                p_value = float(p_value)
+                preferred = preferred_model_label(r_value, model_1, model_2)
+                interpretation = interpret_comparison(
+                    r_value, p_value, model_1, model_2
+                )
+            except Exception as exc:
+                r_value = float("nan")
+                p_value = float("nan")
+                preferred = "unavailable"
+                message = str(exc).strip() or exc.__class__.__name__
+                interpretation = f"error during comparison ({message})"
+
+            comparison_rows.append(
+                {
+                    "log_name": log_name,
+                    "model_1": model_1,
+                    "model_2": model_2,
+                    "R": r_value,
+                    "p": p_value,
+                    "preferred_model": preferred,
+                    "interpretation": interpretation,
+                }
+            )
     return pd.DataFrame(comparison_rows)
+
+
+def preferred_base_model(
+    comparison_df: pd.DataFrame, significance_level: float = 0.10
+) -> str:
+    """Infer preferred base model from direct power-law vs truncated comparison."""
+    direct_mask = (
+        comparison_df["model_1"].isin(BASE_MODEL_CANDIDATES)
+        & comparison_df["model_2"].isin(BASE_MODEL_CANDIDATES)
+        & comparison_df["p"].notna()
+        & comparison_df["R"].notna()
+    )
+    direct_df = comparison_df.loc[direct_mask].copy()
+    if direct_df.empty:
+        return "power_law"
+
+    significant_df = direct_df[direct_df["p"] < significance_level]
+    if significant_df.empty:
+        return "power_law"
+
+    preferred_labels = set(significant_df["preferred_model"].dropna().astype(str))
+    if "truncated_power_law" in preferred_labels and "power_law" not in preferred_labels:
+        return "truncated_power_law"
+    if "power_law" in preferred_labels and "truncated_power_law" not in preferred_labels:
+        return "power_law"
+    return "power_law"
+
+
+def _failed_gof_result(
+    *,
+    model_name: str,
+    n_bootstraps: int,
+    empirical_xmin: float = float("nan"),
+    empirical_alpha: float = float("nan"),
+    empirical_d: float = float("nan"),
+) -> dict[str, Any]:
+    """Return an empty GOF result when bootstrap cannot be completed."""
+    return {
+        "empirical_xmin": float(empirical_xmin),
+        "empirical_alpha": float(empirical_alpha),
+        "empirical_d": float(empirical_d),
+        "model_name": model_name,
+        "gof_p": float("nan"),
+        "n_success": 0,
+        "n_failed": int(n_bootstraps),
+        "simulated_distances": np.asarray([], dtype=float),
+    }
 
 
 def clauset_gof_bootstrap(
     data: np.ndarray,
     n_bootstraps: int = 1000,
     random_seed: int = 42,
+    model_name: str = "power_law",
 ) -> dict[str, Any]:
-    """Clauset-style semiparametric bootstrap GOF for a discrete power law."""
+    """Clauset-style semiparametric bootstrap GOF for a fitted tail model.
+
+    Returns NaN ``gof_p`` (instead of raising) when the bootstrap cannot be
+    completed for the requested model.
+    """
     data = np.asarray(data, dtype=int)
     if data.ndim != 1 or data.size == 0:
         raise ValueError("data must be a non-empty one-dimensional integer array.")
 
-    empirical_fit = powerlaw.Fit(data, discrete=True, verbose=False)
-    empirical_xmin = float(empirical_fit.power_law.xmin)
-    empirical_alpha = float(empirical_fit.power_law.alpha)
-    empirical_d = float(empirical_fit.power_law.D)
+    try:
+        empirical_fit = powerlaw.Fit(data, discrete=True, verbose=False)
+        empirical_model = getattr(empirical_fit, model_name)
+        empirical_xmin = float(empirical_model.xmin)
+        empirical_alpha = float(empirical_model.alpha)
+        empirical_d = float(empirical_model.D)
+    except Exception:
+        return _failed_gof_result(model_name=model_name, n_bootstraps=n_bootstraps)
+
+    if not (
+        np.isfinite(empirical_xmin)
+        and np.isfinite(empirical_alpha)
+        and np.isfinite(empirical_d)
+    ):
+        return _failed_gof_result(
+            model_name=model_name,
+            n_bootstraps=n_bootstraps,
+            empirical_xmin=empirical_xmin,
+            empirical_alpha=empirical_alpha,
+            empirical_d=empirical_d,
+        )
 
     body = data[data < empirical_xmin]
     n_tail = int(np.sum(data >= empirical_xmin))
     n_body = int(body.size)
 
     if n_tail < 2:
-        raise ValueError(
-            f"Too few observations in the fitted region (n_tail={n_tail}) for bootstrap GOF."
+        return _failed_gof_result(
+            model_name=model_name,
+            n_bootstraps=n_bootstraps,
+            empirical_xmin=empirical_xmin,
+            empirical_alpha=empirical_alpha,
+            empirical_d=empirical_d,
         )
 
     rng = np.random.default_rng(random_seed)
@@ -246,7 +351,7 @@ def clauset_gof_bootstrap(
 
     for _ in range(n_bootstraps):
         try:
-            synthetic_tail = empirical_fit.power_law.generate_random(
+            synthetic_tail = empirical_model.generate_random(
                 n_tail,
                 estimate_discrete=True,
             )
@@ -260,7 +365,8 @@ def clauset_gof_bootstrap(
                 synthetic_data = synthetic_tail
 
             synthetic_fit = powerlaw.Fit(synthetic_data, discrete=True, verbose=False)
-            simulated_d = float(synthetic_fit.power_law.D)
+            simulated_model = getattr(synthetic_fit, model_name)
+            simulated_d = float(simulated_model.D)
             if not np.isfinite(simulated_d):
                 raise ValueError("non-finite synthetic KS distance")
             simulated_distances.append(simulated_d)
@@ -270,7 +376,13 @@ def clauset_gof_bootstrap(
     simulated_distances_arr = np.asarray(simulated_distances, dtype=float)
     n_success = int(simulated_distances_arr.size)
     if n_success == 0:
-        raise RuntimeError("All bootstrap iterations failed; cannot compute GOF p-value.")
+        return _failed_gof_result(
+            model_name=model_name,
+            n_bootstraps=n_bootstraps,
+            empirical_xmin=empirical_xmin,
+            empirical_alpha=empirical_alpha,
+            empirical_d=empirical_d,
+        )
 
     n_at_least = int(np.sum(simulated_distances_arr >= empirical_d))
     # Add-one correction; denominator uses configured n_bootstraps, not only successes.
@@ -280,6 +392,7 @@ def clauset_gof_bootstrap(
         "empirical_xmin": empirical_xmin,
         "empirical_alpha": empirical_alpha,
         "empirical_d": empirical_d,
+        "model_name": model_name,
         "gof_p": float(p_value),
         "n_success": n_success,
         "n_failed": int(n_failed),
@@ -293,34 +406,49 @@ def classify_power_law_result(
     comparison_df: pd.DataFrame,
     minimum_fitted_variants: int = 50,
     significance_level: float = 0.10,
+    preferred_model: str | None = None,
 ) -> str:
-    """Return a conservative textual classification of power-law evidence."""
+    """Return a conservative textual classification of tail-model evidence."""
+    preferred_model = preferred_model or preferred_base_model(
+        comparison_df, significance_level=significance_level
+    )
+    model_label = (
+        "truncated power law"
+        if preferred_model == "truncated_power_law"
+        else "power law"
+    )
+    base_comparisons = comparison_df[
+        (comparison_df["model_1"] == preferred_model)
+        & (~comparison_df["model_2"].isin(BASE_MODEL_CANDIDATES))
+    ]
     alternative_significantly_preferred = bool(
         (
-            (comparison_df["R"] < 0)
-            & (comparison_df["p"] < significance_level)
-            & comparison_df["R"].notna()
-            & comparison_df["p"].notna()
+            (base_comparisons["R"] < 0)
+            & (base_comparisons["p"] < significance_level)
+            & base_comparisons["R"].notna()
+            & base_comparisons["p"].notna()
         ).any()
     )
     power_law_significantly_preferred = bool(
         (
-            (comparison_df["R"] > 0)
-            & (comparison_df["p"] < significance_level)
-            & comparison_df["R"].notna()
-            & comparison_df["p"].notna()
+            (base_comparisons["R"] > 0)
+            & (base_comparisons["p"] < significance_level)
+            & base_comparisons["R"].notna()
+            & base_comparisons["p"].notna()
         ).any()
     )
 
     if n_fitted_variants < minimum_fitted_variants:
         return "insufficient fitted observations"
+    if not np.isfinite(gof_p):
+        return f"{model_label} GOF unavailable"
     if gof_p < significance_level:
-        return "power law rejected"
+        return f"{model_label} rejected"
     if alternative_significantly_preferred:
-        return "power law not rejected, but alternative preferred"
+        return f"{model_label} not rejected, but alternative preferred"
     if power_law_significantly_preferred:
-        return "power law plausible and preferred over alternatives"
-    return "power law plausible, comparisons inconclusive"
+        return f"{model_label} plausible and preferred over alternatives"
+    return f"{model_label} plausible, comparisons inconclusive"
 
 
 def build_summary_row(
@@ -331,7 +459,15 @@ def build_summary_row(
     descriptive_stats: Mapping[str, Any] | pd.Series | pd.DataFrame,
     fit_result: Mapping[str, Any],
     gof_p: float,
-    classification: str,
+    power_law_gof_p: float,
+    truncated_power_law_gof_p: float,
+    power_law_gof_n_success: int,
+    power_law_gof_n_failed: int,
+    truncated_power_law_gof_n_success: int,
+    truncated_power_law_gof_n_failed: int,
+    power_law_classification: str,
+    truncated_power_law_classification: str,
+    truncated_power_law_preferred_over_power_law: bool | None = None,
 ) -> dict[str, Any]:
     """Assemble the final one-row summary used by notebook and batch CSV output."""
     if isinstance(descriptive_stats, pd.DataFrame):
@@ -341,6 +477,20 @@ def build_summary_row(
     else:
         stats = dict(descriptive_stats)
 
+    def _optional_float(value: float) -> float | pd.NA:
+        value = float(value)
+        return value if np.isfinite(value) else pd.NA
+
+    def _optional_int(value: Any) -> int | pd.NA:
+        if value is None or (isinstance(value, float) and not np.isfinite(value)):
+            return pd.NA
+        try:
+            if pd.isna(value):
+                return pd.NA
+        except (TypeError, ValueError):
+            pass
+        return int(value)
+
     return {
         "concept_name": concept_name,
         "log_name": log_name,
@@ -349,12 +499,48 @@ def build_summary_row(
         "n_variants": int(stats["n_variants"]),
         "n_singletons": int(stats["n_singletons"]),
         "singleton_share": float(stats["singleton_share"]),
-        "alpha": float(fit_result["alpha"]),
-        "xmin": float(fit_result["xmin"]),
-        "KS_D": float(fit_result["KS_D"]),
-        "gof_p": float(gof_p),
-        "n_fitted_variants": int(fit_result["n_fitted_variants"]),
-        "fitted_variant_share": float(fit_result["fitted_variant_share"]),
-        "fitted_case_share": float(fit_result["fitted_case_share"]),
-        "classification": classification,
+        "power_law_alpha": _optional_float(fit_result["power_law_alpha"]),
+        "power_law_xmin": _optional_float(fit_result["power_law_xmin"]),
+        "power_law_KS_D": _optional_float(fit_result["power_law_KS_D"]),
+        "power_law_n_fitted_variants": _optional_int(
+            fit_result["power_law_n_fitted_variants"]
+        ),
+        "power_law_fitted_variant_share": _optional_float(
+            fit_result["power_law_fitted_variant_share"]
+        ),
+        "power_law_fitted_case_share": _optional_float(
+            fit_result["power_law_fitted_case_share"]
+        ),
+        "truncated_power_law_alpha": _optional_float(
+            fit_result["truncated_power_law_alpha"]
+        ),
+        "truncated_power_law_xmin": _optional_float(
+            fit_result["truncated_power_law_xmin"]
+        ),
+        "truncated_power_law_KS_D": _optional_float(
+            fit_result["truncated_power_law_KS_D"]
+        ),
+        "truncated_power_law_n_fitted_variants": _optional_int(
+            fit_result["truncated_power_law_n_fitted_variants"]
+        ),
+        "truncated_power_law_fitted_variant_share": _optional_float(
+            fit_result["truncated_power_law_fitted_variant_share"]
+        ),
+        "truncated_power_law_fitted_case_share": _optional_float(
+            fit_result["truncated_power_law_fitted_case_share"]
+        ),
+        "gof_p": _optional_float(gof_p),
+        "power_law_gof_p": _optional_float(power_law_gof_p),
+        "truncated_power_law_gof_p": _optional_float(truncated_power_law_gof_p),
+        "power_law_gof_n_success": int(power_law_gof_n_success),
+        "power_law_gof_n_failed": int(power_law_gof_n_failed),
+        "truncated_power_law_gof_n_success": int(truncated_power_law_gof_n_success),
+        "truncated_power_law_gof_n_failed": int(truncated_power_law_gof_n_failed),
+        "truncated_power_law_preferred_over_power_law": (
+            pd.NA
+            if truncated_power_law_preferred_over_power_law is None
+            else bool(truncated_power_law_preferred_over_power_law)
+        ),
+        "power_law_classification": power_law_classification,
+        "truncated_power_law_classification": truncated_power_law_classification,
     }

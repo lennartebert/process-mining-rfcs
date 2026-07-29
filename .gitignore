@@ -189,3 +189,6 @@ cython_debug/
 
 # User-specific data dictionary (default_data_dictionary.json is the template)
 data/data_dictionary.json
+
+# Slurm job scripts and logs
+.slurm/

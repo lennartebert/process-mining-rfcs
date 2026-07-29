@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from utils.constants import RESULTS_DIR
 from utils.io import load_attachments, parse_dataset_inputs
+from utils.rfc.statistical_tests import DEFAULT_ALTERNATIVES, preferred_base_model
 from utils.rfc import (
     build_summary_row,
     classify_power_law_result,
@@ -25,6 +26,97 @@ from utils.rfc import (
     fit_discrete_power_law,
     to_frequency_array,
 )
+
+COMPARISON_MODEL_1_CANDIDATES = ("power_law", "truncated_power_law")
+
+
+def _classify_dataset_error(exc: Exception) -> str:
+    """Map per-dataset failures to a compact summary classification."""
+    message = str(exc).strip() or exc.__class__.__name__
+    lowered = message.lower()
+    if any(
+        token in lowered
+        for token in (
+            "not enough",
+            "too few",
+            "no valid",
+            "insufficient",
+            "cannot fit",
+            "xmin",
+        )
+    ):
+        return f"insufficient observations ({message})"
+    return f"error during fitting ({message})"
+
+
+def _empty_summary_row(
+    *,
+    concept_name: str,
+    dataset_name: str,
+    attachments_path: Path,
+    classification: str,
+) -> dict:
+    """Return a summary row with unavailable metrics left empty."""
+    return {
+        "concept_name": concept_name,
+        "log_name": dataset_name,
+        "input_path": str(attachments_path),
+        "n_cases": pd.NA,
+        "n_variants": pd.NA,
+        "n_singletons": pd.NA,
+        "singleton_share": pd.NA,
+        "power_law_alpha": pd.NA,
+        "power_law_xmin": pd.NA,
+        "power_law_KS_D": pd.NA,
+        "power_law_n_fitted_variants": pd.NA,
+        "power_law_fitted_variant_share": pd.NA,
+        "power_law_fitted_case_share": pd.NA,
+        "truncated_power_law_alpha": pd.NA,
+        "truncated_power_law_xmin": pd.NA,
+        "truncated_power_law_KS_D": pd.NA,
+        "truncated_power_law_n_fitted_variants": pd.NA,
+        "truncated_power_law_fitted_variant_share": pd.NA,
+        "truncated_power_law_fitted_case_share": pd.NA,
+        "gof_p": pd.NA,
+        "power_law_gof_p": pd.NA,
+        "truncated_power_law_gof_p": pd.NA,
+        "power_law_gof_n_success": pd.NA,
+        "power_law_gof_n_failed": pd.NA,
+        "truncated_power_law_gof_n_success": pd.NA,
+        "truncated_power_law_gof_n_failed": pd.NA,
+        "truncated_power_law_preferred_over_power_law": pd.NA,
+        "power_law_classification": classification,
+        "truncated_power_law_classification": classification,
+    }
+
+
+def _n_fitted_variants(fit_result: dict, model_name: str) -> int:
+    """Return fitted-variant count for a model, defaulting to 0 when missing."""
+    value = fit_result.get(f"{model_name}_n_fitted_variants")
+    if value is None or pd.isna(value):
+        return 0
+    return int(value)
+
+
+def _empty_comparisons_frame(log_name: str) -> pd.DataFrame:
+    """Return per-model comparison rows with unavailable metrics left empty."""
+    rows = []
+    for model_1 in COMPARISON_MODEL_1_CANDIDATES:
+        for model_2, _nested in DEFAULT_ALTERNATIVES:
+            if model_1 == model_2:
+                continue
+            rows.append(
+                {
+                    "log_name": log_name,
+                    "model_1": model_1,
+                    "model_2": model_2,
+                    "R": pd.NA,
+                    "p": pd.NA,
+                    "preferred_model": pd.NA,
+                    "interpretation": pd.NA,
+                }
+            )
+    return pd.DataFrame(rows)
 
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
@@ -105,17 +197,41 @@ def analyze_one_dataset(
         fit_result["fit"],
         log_name=dataset_name,
     )
-    gof_result = clauset_gof_bootstrap(
+    power_law_gof = clauset_gof_bootstrap(
         frequencies,
         n_bootstraps=n_bootstraps,
         random_seed=random_seed,
+        model_name="power_law",
     )
-    classification = classify_power_law_result(
-        n_fitted_variants=int(fit_result["n_fitted_variants"]),
-        gof_p=float(gof_result["gof_p"]),
+    truncated_power_law_gof = clauset_gof_bootstrap(
+        frequencies,
+        n_bootstraps=n_bootstraps,
+        random_seed=random_seed,
+        model_name="truncated_power_law",
+    )
+    preferred_model = preferred_base_model(
+        comparison_df, significance_level=significance_level
+    )
+    selected_gof = (
+        truncated_power_law_gof
+        if preferred_model == "truncated_power_law"
+        else power_law_gof
+    )
+    power_law_classification = classify_power_law_result(
+        n_fitted_variants=_n_fitted_variants(fit_result, "power_law"),
+        gof_p=float(power_law_gof["gof_p"]),
         comparison_df=comparison_df,
         minimum_fitted_variants=minimum_fitted_variants,
         significance_level=significance_level,
+        preferred_model="power_law",
+    )
+    truncated_power_law_classification = classify_power_law_result(
+        n_fitted_variants=_n_fitted_variants(fit_result, "truncated_power_law"),
+        gof_p=float(truncated_power_law_gof["gof_p"]),
+        comparison_df=comparison_df,
+        minimum_fitted_variants=minimum_fitted_variants,
+        significance_level=significance_level,
+        preferred_model="truncated_power_law",
     )
     summary_row = build_summary_row(
         concept_name=concept_name,
@@ -123,11 +239,19 @@ def analyze_one_dataset(
         input_path=str(attachments_path),
         descriptive_stats=descriptive_stats,
         fit_result=fit_result,
-        gof_p=float(gof_result["gof_p"]),
-        classification=classification,
+        gof_p=float(selected_gof["gof_p"]),
+        power_law_gof_p=float(power_law_gof["gof_p"]),
+        truncated_power_law_gof_p=float(truncated_power_law_gof["gof_p"]),
+        power_law_gof_n_success=int(power_law_gof["n_success"]),
+        power_law_gof_n_failed=int(power_law_gof["n_failed"]),
+        truncated_power_law_gof_n_success=int(truncated_power_law_gof["n_success"]),
+        truncated_power_law_gof_n_failed=int(truncated_power_law_gof["n_failed"]),
+        power_law_classification=power_law_classification,
+        truncated_power_law_classification=truncated_power_law_classification,
+        truncated_power_law_preferred_over_power_law=(
+            preferred_model == "truncated_power_law"
+        ),
     )
-    summary_row["gof_n_success"] = int(gof_result["n_success"])
-    summary_row["gof_n_failed"] = int(gof_result["n_failed"])
     return summary_row, comparison_df
 
 
@@ -158,51 +282,77 @@ def main(argv: List[str] | None = None) -> None:
         print(f"\nProcessing {dataset_name}...")
         if not attachments_path.exists():
             print(f"  Warning: attachments file not found: {attachments_path}")
-            continue
-
-        try:
-            summary_row, comparison_df = analyze_one_dataset(
+            summary_row = _empty_summary_row(
+                concept_name=concept_name,
                 dataset_name=dataset_name,
                 attachments_path=attachments_path,
-                concept_name=concept_name,
-                n_bootstraps=args.n_bootstraps,
-                random_seed=args.random_seed,
-                minimum_fitted_variants=args.minimum_fitted_variants,
-                significance_level=args.significance_level,
+                classification="error during fitting (attachments file not found)",
             )
-        except Exception as exc:  # noqa: BLE001 - keep batch resilient per dataset
-            print(f"  Warning: failed on {dataset_name}: {exc}")
-            continue
+            comparison_df = _empty_comparisons_frame(dataset_name)
+        else:
+            try:
+                summary_row, comparison_df = analyze_one_dataset(
+                    dataset_name=dataset_name,
+                    attachments_path=attachments_path,
+                    concept_name=concept_name,
+                    n_bootstraps=args.n_bootstraps,
+                    random_seed=args.random_seed,
+                    minimum_fitted_variants=args.minimum_fitted_variants,
+                    significance_level=args.significance_level,
+                )
+            except Exception as exc:  # noqa: BLE001 - keep batch resilient per dataset
+                print(f"  Warning: failed on {dataset_name}: {exc}")
+                summary_row = _empty_summary_row(
+                    concept_name=concept_name,
+                    dataset_name=dataset_name,
+                    attachments_path=attachments_path,
+                    classification=_classify_dataset_error(exc),
+                )
+                comparison_df = _empty_comparisons_frame(dataset_name)
 
-        print(
-            f"  alpha={summary_row['alpha']:.4f}, xmin={summary_row['xmin']:g}, "
-            f"gof_p={summary_row['gof_p']:.4f}, classification={summary_row['classification']}"
-        )
+        alpha = summary_row["power_law_alpha"]
+        xmin = summary_row["power_law_xmin"]
+        gof_p = summary_row["power_law_gof_p"]
+        if pd.notna(alpha) and pd.notna(xmin) and pd.notna(gof_p):
+            print(
+                f"  alpha={float(alpha):.4f}, xmin={float(xmin):g}, "
+                f"gof_p={float(gof_p):.4f}, "
+                f"power_law_classification={summary_row['power_law_classification']}, "
+                f"truncated_power_law_classification="
+                f"{summary_row['truncated_power_law_classification']}"
+            )
+        else:
+            print(
+                f"  power_law_classification={summary_row['power_law_classification']}, "
+                f"truncated_power_law_classification="
+                f"{summary_row['truncated_power_law_classification']}"
+            )
         summary_rows.append(summary_row)
         comparison_frames.append(comparison_df)
+
+        summary_df = (
+            pd.DataFrame(summary_rows)
+            .sort_values("log_name")
+            .reset_index(drop=True)
+        )
+        comparisons_df = (
+            pd.concat(comparison_frames, ignore_index=True)
+            .sort_values(["log_name", "model_2"])
+            .reset_index(drop=True)
+        )
+        summary_path = analysis_dir / "summary.csv"
+        comparisons_path = analysis_dir / "comparisons.csv"
+        summary_df.to_csv(summary_path, index=False)
+        comparisons_df.to_csv(comparisons_path, index=False)
+        print(f"  Checkpointed: {summary_path}")
+        print(f"  Checkpointed: {comparisons_path}")
 
     if not summary_rows:
         print("Error: no datasets processed successfully")
         raise SystemExit(1)
 
-    summary_df = (
-        pd.DataFrame(summary_rows)
-        .sort_values("log_name")
-        .reset_index(drop=True)
-    )
-    comparisons_df = (
-        pd.concat(comparison_frames, ignore_index=True)
-        .sort_values(["log_name", "model_2"])
-        .reset_index(drop=True)
-    )
-
-    summary_path = analysis_dir / "summary.csv"
-    comparisons_path = analysis_dir / "comparisons.csv"
-    summary_df.to_csv(summary_path, index=False)
-    comparisons_df.to_csv(comparisons_path, index=False)
-
-    print(f"\nSaved: {summary_path}")
-    print(f"Saved: {comparisons_path}")
+    print(f"\nSaved: {analysis_dir / 'summary.csv'}")
+    print(f"Saved: {analysis_dir / 'comparisons.csv'}")
     print(f"All statistical-test outputs saved to: {analysis_dir}")
 
 
