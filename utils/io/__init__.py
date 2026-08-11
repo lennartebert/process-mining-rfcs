@@ -18,6 +18,14 @@ from .attachments import (
     save_attachments,
     trace_completion_data,
 )
+from .case_tables import (
+    CASE_ID_COLUMN,
+    VARIANT_COLUMN,
+    build_case_attribute_table,
+    candidate_attribute_names,
+    is_default_excluded_attribute,
+    is_event_aggregation_column,
+)
 from .event_logs import (
     get_data_dictionary,
     get_event_log_from_dictionary,
@@ -26,7 +34,13 @@ from .event_logs import (
 
 __all__ = [
     "ACTIVITY_CLASSIFIER_NAME",
+    "CASE_ID_COLUMN",
     "REQUIRED_ATTACHMENT_COLUMNS",
+    "VARIANT_COLUMN",
+    "build_case_attribute_table",
+    "candidate_attribute_names",
+    "is_default_excluded_attribute",
+    "is_event_aggregation_column",
     "extract_attachments",
     "extract_attachments_from_trace_data",
     "get_data_dictionary",
