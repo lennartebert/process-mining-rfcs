@@ -9,13 +9,13 @@ from typing import List
 
 import pandas as pd
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.log_info import _parse_count
 from utils.constants import LOG_INFO_DIR, RESULTS_DIR
 from utils.io import load_attachments
+from utils.parsing import parse_count
 
 SUPPORTED_CONCEPTS = ("variants", "activities")
 
@@ -40,8 +40,8 @@ def _check_variants(
     if not attachments_path.exists():
         return [f"{dataset}: missing {attachments_path}"]
 
-    expected_variants = _parse_count(row["# Variants"])
-    expected_cases = _parse_count(row["# Cases"])
+    expected_variants = parse_count(row["# Variants"])
+    expected_cases = parse_count(row["# Cases"])
     if pd.isna(expected_variants) or pd.isna(expected_cases):
         return [f"{dataset}: log_info has missing # Variants or # Cases"]
 
@@ -73,8 +73,8 @@ def _check_activities(
     if not attachments_path.exists():
         return [f"{dataset}: missing {attachments_path}"]
 
-    expected_events = _parse_count(row["# Events"])
-    expected_activities = _parse_count(row["# Activities"])
+    expected_events = parse_count(row["# Events"])
+    expected_activities = parse_count(row["# Activities"])
     if pd.isna(expected_events) or pd.isna(expected_activities):
         return [f"{dataset}: log_info has missing # Events or # Activities"]
 

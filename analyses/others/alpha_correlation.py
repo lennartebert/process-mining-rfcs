@@ -10,11 +10,12 @@ from typing import List
 import pandas as pd
 from scipy.stats import pearsonr
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from utils.constants import LOG_INFO_DIR, RESULTS_DIR
+from utils.parsing import parse_count
 
 LOG_METRICS: List[str] = [
     "# Cases",
@@ -25,18 +26,6 @@ LOG_METRICS: List[str] = [
 
 POWER_ALPHA_COLS = ("power_alpha", "power_law_exponent_alpha")
 BOUNDED_POWER_ALPHA_COLS = ("bounded_power_alpha", "bounded_power_law_exponent_alpha")
-
-
-def _parse_count(value: object) -> float:
-    """Parse a count stored as a number or a comma-formatted string."""
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return float("nan")
-    if isinstance(value, (int, float)):
-        return float(value)
-    text = str(value).strip()
-    if not text:
-        return float("nan")
-    return float(text.replace(",", ""))
 
 
 def _resolve_alpha_column(df: pd.DataFrame, candidates: tuple[str, ...]) -> str | None:
@@ -215,7 +204,7 @@ def main(argv: List[str] | None = None) -> None:
     log_metrics_df = log_info_df.copy()
     log_metrics_df["Log"] = log_metrics_df["Log"].astype(str)
     for metric in LOG_METRICS:
-        log_metrics_df[metric] = log_metrics_df[metric].map(_parse_count)
+        log_metrics_df[metric] = log_metrics_df[metric].map(parse_count)
 
     merged = log_metrics_df.merge(
         alpha_df,

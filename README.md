@@ -23,9 +23,11 @@ Utilities and CLI workflows for rank-frequency-curve (RFC) analysis in process m
 conda env create -f environment.yml
 conda activate process-mining-rfcs
 
-# 2) run the default pipeline (log info + extract attachments + static RFC)
-python main.py --datasets TEST_BPIC12 --concept variants
+# 2) n-gram pipeline (describe -> extract variants+n1..n10 -> Clauset tests)
+python analyses/n_grams/main.py --datasets TEST_BPIC12
 ```
+
+More recipes: [`analyses/n_grams/README.md`](analyses/n_grams/README.md).
 
 If you want to (re)calculate attachments from raw logs, place your `.xes` files under `data/`, create a copy of the data dictionary (to be placed `data/data_dictionary.json`) and ensure refer to the data sets in the dictionary.
 If `results/.../attachments.csv.gz` already exists, extraction is skipped by default.
@@ -33,9 +35,9 @@ If `results/.../attachments.csv.gz` already exists, extraction is skipped by def
 You can also run the analysis/simulation notebooks:
 
 ```bash
-jupyter notebook analyze_powerlaw_single_log.ipynb
-jupyter notebook interactive_simulation_experiments.ipynb
-jupyter notebook preset_simulation_experiments.ipynb
+jupyter notebook analyses/rfcs/analyze_powerlaw_single_log.ipynb
+jupyter notebook analyses/rfcs/interactive_simulation_experiments.ipynb
+jupyter notebook analyses/rfcs/preset_simulation_experiments.ipynb
 ```
 
 Use the `process-mining-rfcs` Jupyter kernel for these notebooks.
@@ -44,13 +46,17 @@ Use the `process-mining-rfcs` Jupyter kernel for these notebooks.
 
 The repo is structured as follows:
 
-- `main.py` is the top-level pipeline entrypoint.
-- `interactive_simulation_experiments.ipynb` provides interactive simulation widgets.
-- `preset_simulation_experiments.ipynb` runs the preconfigured paper-aligned experiment batches.
-- `data/` contains event-log inputs and dataset metadata.
+- `data/` contains event-log inputs, dataset metadata, and static assets (`data/images/`).
 - `results/` contains generated outputs (attachments, RFC analysis artifacts, and experiment artifacts). Permanent, version-controlled results live under `results/perm/`.
-- `scripts/` contains CLI entrypoints only.
-- `utils/` contains reusable modules. `scripts/` may import from `utils/` but not the other way around.
+- `utils/` contains reusable library modules (no CLI entrypoints).
+- `cli/` contains shared command-line tools only: `log_info.py`, `extract_attachments.py`, `clauset_power_law.py` (import `utils/` only).
+- `analyses/` contains topic pipelines and notebooks:
+  - `analyses/rfcs/` — notebooks only
+  - `analyses/n_grams/` — numbered n-gram / Clauset pipeline + `main.py`
+  - `analyses/preferential_attachment/` — preferential-attachment detection
+  - `analyses/case_attributes/` — case-attribute pipeline + `main.py`
+  - `analyses/others/` — legacy / misc scripts (may be removed later)
+- `tests/` contains unit tests.
 
 ## Activity definition
 
@@ -61,58 +67,25 @@ For attachment extraction, variant counting, and activity statistics (`log_info`
 
 The same logic lives in `utils/io/activity_labels.py` and is used by `extract_attachments` and `log_info`.
 
-## Running the CLI Scripts
+## Running the CLIs
 
-Main pipeline entrypoint:
-
-```bash
-python main.py --datasets TEST_BPIC12 --concept variants
-```
-
-Default `main.py` stages:
-
-- `scripts/log_info.py`
-- `scripts/extract_attachments.py` (skips extraction when `attachments.csv.gz` already exists)
-- `scripts/rfc_powerlaw_analysis.py`
-
-Optional stages are opt-in:
-
-- `--run-pdf` enables `scripts/pdf_powerlaw_analysis.py`
-- `--run-statistical-tests` enables `scripts/powerlaw_statistical_tests.py`
-- `--run-dynamic` enables `scripts/dynamic_rfc_analysis.py`
-- `--run-alpha-correlation` enables `scripts/alpha_correlationy.py`
-
-Examples:
+Shared tools (run from the repository root):
 
 ```bash
-# default pipeline
-python main.py --datasets TEST_BPIC12 --concept variants
-
-# include PDF stage
-python main.py --datasets TEST_BPIC12 --concept variants --run-pdf
-
-# include Clauset-style statistical tests (writes results/statistical_tests/<concept>/)
-python main.py --datasets TEST_BPIC12 --concept variants --run-statistical-tests
-
-# include both optional stages
-python main.py --datasets TEST_BPIC12 --concept variants --run-pdf --run-dynamic
-
-# alpha correlation only (requires existing log_info.csv and rfc_static_analysis.csv)
-python main.py --datasets TEST_BPIC12 --concept variants \
-  --skip-log-info --skip-extract --skip-static --run-alpha-correlation
+python cli/log_info.py --help
+python cli/extract_attachments.py --help
+python cli/clauset_power_law.py --help
 ```
 
-Individual script entrypoints:
+Analysis pipelines:
 
 ```bash
-python scripts/extract_attachments.py --help
-python scripts/rfc_powerlaw_analysis.py --help
-python scripts/pdf_powerlaw_analysis.py --help
-python scripts/powerlaw_statistical_tests.py --help
-python scripts/dynamic_rfc_analysis.py --help
-python scripts/log_info.py --help
-python scripts/alpha_correlationy.py --help
+python analyses/n_grams/main.py --help
+python analyses/case_attributes/main.py --help
+python analyses/preferential_attachment/detect_preferential_attachment.py --help
 ```
+
+Details: [`analyses/n_grams/README.md`](analyses/n_grams/README.md), [`analyses/case_attributes/README.md`](analyses/case_attributes/README.md), [`analyses/rfcs/README.md`](analyses/rfcs/README.md).
 
 ## Data
 

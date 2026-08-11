@@ -1,4 +1,8 @@
-"""Batch Clauset-style discrete power-law statistical tests from attachments."""
+"""Shared CLI: Clauset-style discrete power-law evaluation from attachments.
+
+For a given attachments path (``dataset=path`` pairs), run GOF and model
+comparisons and write ``results/statistical_tests/<analysis-name>/``.
+"""
 
 from __future__ import annotations
 
@@ -48,7 +52,9 @@ def _classify_dataset_error(exc: Exception) -> str:
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for batch power-law statistical tests."""
-    parser = argparse.ArgumentParser(description="Power-law statistical tests")
+    parser = argparse.ArgumentParser(
+        description="Clauset-style power-law evaluation from attachments"
+    )
     parser.add_argument(
         "--inputs",
         nargs="+",

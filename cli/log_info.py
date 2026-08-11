@@ -14,6 +14,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from utils.constants import DATA_DICTIONARY_PATH, LOG_INFO_DIR
 from utils.io import get_data_dictionary, get_event_log_from_path, variant_and_activity_counts
+from utils.parsing import parse_count
 
 
 LOG_INFO_COLUMNS: List[str] = [
@@ -28,21 +29,9 @@ LOG_INFO_COLUMNS: List[str] = [
 COUNT_COLUMNS = LOG_INFO_COLUMNS[2:]
 
 
-def _parse_count(value: object) -> float:
-    """Parse a count stored as a number or a comma-formatted string."""
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return float("nan")
-    if isinstance(value, (int, float)):
-        return float(value)
-    text = str(value).strip()
-    if not text:
-        return float("nan")
-    return float(text.replace(",", ""))
-
-
 def _format_count_for_latex(value: object) -> str:
     """Format numeric counts for LaTeX tables."""
-    parsed = _parse_count(value)
+    parsed = parse_count(value)
     if pd.isna(parsed):
         return ""
     return format(int(round(parsed)), ",")
@@ -85,7 +74,7 @@ def _load_csv_by_log(csv_path: Path) -> Dict[str, dict]:
     df = pd.read_csv(csv_path)
     for col in COUNT_COLUMNS:
         if col in df.columns:
-            df[col] = df[col].map(_parse_count)
+            df[col] = df[col].map(parse_count)
     by_log: Dict[str, dict] = {}
     for _, row in df.iterrows():
         name = str(row["Log"])

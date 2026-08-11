@@ -2,12 +2,12 @@
 
 Run from the repository root. Dataset paths in the data dictionary and default
 `results/` output are relative to the current working directory. Importing
-`utils` requires the repo root on PYTHONPATH (e.g. set by `main.py` or
-`export PYTHONPATH="$PWD"` before calling this script directly).
+`utils` requires the repo root on PYTHONPATH (this module inserts it when run
+as a script; otherwise `export PYTHONPATH="$PWD"`).
 
 Outputs are written as:
 `<output-root>/<concept>/<dataset>/attachments.csv.gz`
-where concept is one of: variants, activities, dfrs.
+where concept is one of: variants, activities, dfrs, n1..n10.
 """
 
 import argparse
@@ -27,6 +27,7 @@ from utils.io import (
     save_attachments,
     trace_completion_data,
 )
+from utils.io.attachments import NGRAM_CONCEPTS
 
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
@@ -48,8 +49,8 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--concepts",
         nargs="+",
         default=["variants"],
-        choices=["variants", "activities", "dfrs"],
-        help="Concepts for attachment extraction",
+        choices=["variants", "activities", "dfrs", *NGRAM_CONCEPTS],
+        help="Concepts for attachment extraction (n1..n10 = length-k activity n-grams)",
     )
     return parser.parse_args(argv)
 
