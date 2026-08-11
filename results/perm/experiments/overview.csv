@@ -1,0 +1,18 @@
+Scenario,Experiment
+Example,example1: Example configuration
+Simple process structure,a1: Single equal XOR
+Simple process structure,a2: Single majority XOR
+Simple process structure,a3: Single power law XOR
+Simple process structure,a4: Multi-equal XORs
+Simple process structure,a5: Multi-majority XORs
+Simple process structure,a6: Multi-power law XORs
+Simple process structure,"a7: Single majority XOR, loop"
+Simple process structure,"a8: Single power law XOR, loop"
+Simple process structure,"a9: Parallel, majority XOR"
+Simple process structure,"a10: Parallel, power law XOR"
+Simple process structure,a11: Complex majority XORs
+Process composition,"b1: Composition, $\alpha$ constant"
+Process composition,"b2: Composition, $\alpha$ change"
+Process change,c1: Non-overlapping change
+Process change,"c2: $\alpha$ change, overlapping"
+Process change,"c3: XOR change, overlapping"
