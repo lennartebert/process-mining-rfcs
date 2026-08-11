@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import RESULTS_DIR
+from utils.constants import PREFERENTIAL_ATTACHMENT_DIR
 from utils.io import load_attachments, parse_dataset_inputs
 
 DEFAULT_LAMBDA_REG = 0.1
@@ -256,13 +256,16 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=None,
-        help="Output root directory (default: results)",
+        help=f"Output root directory (default: {PREFERENTIAL_ATTACHMENT_DIR})",
     )
     parser.add_argument(
         "--analysis-name",
         type=str,
-        default="dynamic_pa_analysis",
-        help="Subfolder name under the output root for this run (e.g. same as concept or a batch label)",
+        default="",
+        help=(
+            "Optional subfolder under the output root (default: write directly "
+            f"under {PREFERENTIAL_ATTACHMENT_DIR})"
+        ),
     )
     parser.add_argument(
         "--split-ratio",
@@ -309,9 +312,12 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
 def main(argv: List[str] | None = None) -> None:
     """Run dynamic analysis for selected attachment inputs."""
     args = parse_args(argv)
-    output_root = Path(args.output_dir) if args.output_dir else RESULTS_DIR
+    output_root = (
+        Path(args.output_dir) if args.output_dir else PREFERENTIAL_ATTACHMENT_DIR
+    )
     output_root.mkdir(parents=True, exist_ok=True)
-    analysis_root = output_root / args.analysis_name
+    analysis_name = (args.analysis_name or "").strip()
+    analysis_root = output_root / analysis_name if analysis_name else output_root
     analysis_root.mkdir(parents=True, exist_ok=True)
 
     try:

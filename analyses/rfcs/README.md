@@ -12,6 +12,12 @@ jupyter notebook analyses/rfcs/preset_simulation_experiments.ipynb
 
 Use the `process-mining-rfcs` Jupyter kernel.
 
+Paths:
+
+- Attachments: `results/attachments/<concept>/<log>/attachments.csv.gz`
+- Simulation experiments: `results/rfcs/experiments/`
+- Log info / RFC tables & plots: `results/rfcs/`
+
 Related CLI pipelines live elsewhere:
 
 - N-grams / Clauset batch: [`analyses/n_grams/`](../n_grams/)

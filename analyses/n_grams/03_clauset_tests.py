@@ -1,7 +1,12 @@
 """Step 03: Clauset power-law tests on n-gram/variant attachments.
 
 Runs ``cli.clauset_power_law`` once per concept (variants, n1..n10 by default),
-writing under ``results/statistical_tests/<concept>/``.
+reading attachments from ``results/attachments/`` and writing under
+``results/n_grams/<concept>/<model>/``.
+
+Model policy:
+- ``variants``: full_range, lower_bounded, and doubly_bounded
+- other concepts (n-grams, …): lower_bounded only
 """
 
 from __future__ import annotations
@@ -16,10 +21,17 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from cli import clauset_power_law
-from utils.constants import RESULTS_DIR
+from utils.constants import ATTACHMENTS_DIR, N_GRAMS_DIR
 from utils.io.attachments import NGRAM_CONCEPTS
+from utils.rfc.statistical_tests import (
+    DISTRIBUTION_NAMES,
+    LOWER_BOUNDED_POWER_LAW,
+)
 
-DEFAULT_CONCEPTS = ["variants", *NGRAM_CONCEPTS]
+DEFAULT_CONCEPTS = [*NGRAM_CONCEPTS, "variants"]
+CONCEPT_CHOICES = ["variants", "activities", "dfrs", *NGRAM_CONCEPTS]
+VARIANT_MODELS = list(DISTRIBUTION_NAMES)
+NGRAM_MODELS = [LOWER_BOUNDED_POWER_LAW]
 
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
@@ -34,15 +46,20 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--concepts",
         nargs="+",
         default=DEFAULT_CONCEPTS,
-        choices=["variants", "activities", "dfrs", *NGRAM_CONCEPTS],
-        help="Concepts whose attachments to test (default: variants + n1..n10)",
+        choices=CONCEPT_CHOICES,
+        help="Concepts whose attachments to test (default: n1..n10 + variants)",
+    )
+    parser.add_argument(
+        "--attachments-dir",
+        type=str,
+        default=None,
+        help=f"Root of attachments tree (default: {ATTACHMENTS_DIR})",
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
-        help="Output root containing <concept>/<dataset>/attachments.csv.gz "
-        "(default: results)",
+        help=f"N-grams results root for Clauset outputs (default: {N_GRAMS_DIR})",
     )
     parser.add_argument(
         "--n-bootstraps",
@@ -59,13 +76,24 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def models_for_concept(concept: str) -> list[str]:
+    """Return which power-law models to fit for a concept."""
+    if concept == "variants":
+        return VARIANT_MODELS
+    return NGRAM_MODELS
+
+
 def main(argv: List[str] | None = None) -> None:
     args = parse_args(argv)
-    output_root = Path(args.output_dir) if args.output_dir else RESULTS_DIR
+    attachments_root = (
+        Path(args.attachments_dir) if args.attachments_dir else ATTACHMENTS_DIR
+    )
+    output_root = Path(args.output_dir) if args.output_dir else N_GRAMS_DIR
 
     for concept in args.concepts:
+        models = models_for_concept(concept)
         inputs = [
-            f"{dataset}={output_root / concept / dataset / 'attachments.csv.gz'}"
+            f"{dataset}={attachments_root / concept / dataset / 'attachments.csv.gz'}"
             for dataset in args.datasets
         ]
         forward = [
@@ -79,6 +107,8 @@ def main(argv: List[str] | None = None) -> None:
             str(args.n_bootstraps),
             "--random-seed",
             str(args.random_seed),
+            "--models",
+            *models,
         ]
         print(f"$ python cli/clauset_power_law.py {' '.join(forward)}")
         clauset_power_law.main(forward)

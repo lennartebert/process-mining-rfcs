@@ -1,8 +1,8 @@
 """Step 3: Clauset power-law analysis of selected case attributes.
 
 Reads ``attribute_selection_for_powerlaw.csv`` (step 2). Writes the same
-``gof`` / ``comparison`` / ``summary`` CSV layout as the variant statistical
-tests under ``results/statistical_tests/{analysis_name}/``.
+``gof`` / ``comparison`` / ``summary`` CSV layout under
+``results/case_attributes/powerlaw/<model>/``.
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ if str(REPO_ROOT) not in sys.path:
 from utils.constants import (
     ALL_REAL_LOG_DATASETS,
     ALL_REAL_LOGS_TOKEN,
+    CASE_ATTRIBUTES_DIR,
     DATA_DICTIONARY_PATH,
-    RESULTS_DIR,
 )
 from utils.io import get_data_dictionary, get_event_log_from_path
 from utils.io.case_tables import build_case_attribute_table
@@ -80,19 +80,13 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--config-dir",
         type=str,
-        default=str(RESULTS_DIR / "case_attribute_analysis"),
-    )
-    parser.add_argument(
-        "--analysis-name",
-        type=str,
-        default="case_attributes",
-        help="Subfolder under results/statistical_tests (default: case_attributes)",
+        default=str(CASE_ATTRIBUTES_DIR),
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
-        help="Output root directory (default: results)",
+        help=f"Case-attributes results root (default: {CASE_ATTRIBUTES_DIR})",
     )
     parser.add_argument(
         "--data-dictionary",
@@ -172,8 +166,8 @@ def analyze_one_attribute(
 
 def main(argv: List[str] | None = None) -> None:
     args = parse_args(argv)
-    output_root = Path(args.output_dir) if args.output_dir else RESULTS_DIR
-    analysis_dir = output_root / "statistical_tests" / args.analysis_name
+    output_root = Path(args.output_dir) if args.output_dir else CASE_ATTRIBUTES_DIR
+    analysis_dir = output_root / "powerlaw"
     analysis_dir.mkdir(parents=True, exist_ok=True)
     config_dir = Path(args.config_dir)
 

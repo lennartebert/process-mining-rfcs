@@ -29,6 +29,21 @@ from .statistical_tests import (
 )
 
 
+def _normalize_models(models: tuple[str, ...] | list[str] | None) -> tuple[str, ...]:
+    """Validate and return requested distribution names (default: all three)."""
+    if models is None:
+        return DISTRIBUTION_NAMES
+    unknown = [name for name in models if name not in DISTRIBUTION_NAMES]
+    if unknown:
+        raise ValueError(
+            f"unknown power-law model(s): {unknown}; "
+            f"expected subset of {list(DISTRIBUTION_NAMES)}"
+        )
+    # Preserve canonical order even if callers pass a different order.
+    requested = set(models)
+    return tuple(name for name in DISTRIBUTION_NAMES if name in requested)
+
+
 def analyze_powerlaw_data(
     data: np.ndarray,
     *,
@@ -39,8 +54,9 @@ def analyze_powerlaw_data(
     random_seed: int = 42,
     minimum_fitted_variants: int = 50,
     significance_level: float = 0.10,
+    models: tuple[str, ...] | list[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Run full-range, lower-bounded, and doubly-bounded tests on observations.
+    """Run selected power-law model fits on observations.
 
     Parameters
     ----------
@@ -51,7 +67,13 @@ def analyze_powerlaw_data(
         Pass through to ``powerlaw.Fit`` and semiparametric bootstrap.
     log_name / input_path :
         Labels copied into summary / GOF / comparison rows.
+    models :
+        Subset of ``DISTRIBUTION_NAMES`` to fit. Default: all three.
     """
+    selected_models = _normalize_models(models)
+    if not selected_models:
+        raise ValueError("at least one power-law model must be selected")
+
     data = to_observation_array(data, discrete=discrete)
     if data.size < 2:
         raise ValueError("not enough observations to fit a power law")
@@ -60,8 +82,11 @@ def analyze_powerlaw_data(
 
     evaluations: dict[str, dict[str, Any] | None] = {}
     gof_rows_by_dist: dict[str, list[dict[str, Any]]] = {}
+    candidate_fits: list[Any] = []
 
     for name in (FULL_RANGE_POWER_LAW, LOWER_BOUNDED_POWER_LAW):
+        if name not in selected_models:
+            continue
         xmin = DISTRIBUTION_SPECS[name]["xmin"]
         evaluation = evaluate_power_law_fit(
             data,
@@ -75,27 +100,28 @@ def analyze_powerlaw_data(
         gof_row = gof_row_from_evaluation(log_name=log_name, evaluation=evaluation)
         gof_rows_by_dist[name] = [] if gof_row is None else [gof_row]
 
-    db_selected, candidate_fits = evaluate_doubly_bounded_power_law(
-        data,
-        n_bootstraps=n_bootstraps,
-        random_seed=random_seed,
-        discrete=discrete,
-    )
-    evaluations[DOUBLY_BOUNDED_POWER_LAW] = db_selected
-    if db_selected is None:
-        gof_rows_by_dist[DOUBLY_BOUNDED_POWER_LAW] = []
-    else:
-        gof_row = gof_row_from_evaluation(
-            log_name=log_name,
-            evaluation=db_selected,
-            selected=True,
+    if DOUBLY_BOUNDED_POWER_LAW in selected_models:
+        db_selected, candidate_fits = evaluate_doubly_bounded_power_law(
+            data,
+            n_bootstraps=n_bootstraps,
+            random_seed=random_seed,
+            discrete=discrete,
         )
-        gof_rows_by_dist[DOUBLY_BOUNDED_POWER_LAW] = (
-            [] if gof_row is None else [gof_row]
-        )
+        evaluations[DOUBLY_BOUNDED_POWER_LAW] = db_selected
+        if db_selected is None:
+            gof_rows_by_dist[DOUBLY_BOUNDED_POWER_LAW] = []
+        else:
+            gof_row = gof_row_from_evaluation(
+                log_name=log_name,
+                evaluation=db_selected,
+                selected=True,
+            )
+            gof_rows_by_dist[DOUBLY_BOUNDED_POWER_LAW] = (
+                [] if gof_row is None else [gof_row]
+            )
 
     results: dict[str, dict[str, Any]] = {}
-    for name in DISTRIBUTION_NAMES:
+    for name in selected_models:
         evaluation = evaluations[name]
         if evaluation is None:
             results[name] = {
@@ -166,10 +192,12 @@ def empty_powerlaw_results(
     log_name: str,
     input_path: str,
     classification: str,
+    models: tuple[str, ...] | list[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Build empty per-distribution outputs for a failed analysis unit."""
+    selected_models = _normalize_models(models)
     results: dict[str, dict[str, Any]] = {}
-    for name in DISTRIBUTION_NAMES:
+    for name in selected_models:
         results[name] = {
             "gof_rows": [],
             "comparison_df": empty_comparison_frame(log_name, model_1=name),
@@ -192,7 +220,7 @@ def append_and_checkpoint(
     dataset_results: dict[str, dict[str, Any]],
 ) -> None:
     """Append one unit's results and checkpoint CSVs per distribution."""
-    for name in DISTRIBUTION_NAMES:
+    for name in accumulated:
         dist_dir = analysis_dir / name
         dist_dir.mkdir(parents=True, exist_ok=True)
 

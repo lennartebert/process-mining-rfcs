@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import RESULTS_DIR
+from utils.constants import RFCS_DIR
 from utils.io import load_attachments, parse_dataset_inputs
 from utils.rfc import (
     compute_fit_statistics,
@@ -49,7 +49,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=None,
-        help="Output root directory (default: results)",
+        help=f"Output root directory (default: {RFCS_DIR})",
     )
     return parser.parse_args(argv)
 
@@ -58,7 +58,7 @@ def main(argv: List[str] | None = None) -> None:
     """Run RFC analysis end-to-end."""
     plt.switch_backend("Agg")
     args = parse_args(argv)
-    base_output_dir = Path(args.output_dir) if args.output_dir else RESULTS_DIR
+    base_output_dir = Path(args.output_dir) if args.output_dir else RFCS_DIR
     base_output_dir.mkdir(parents=True, exist_ok=True)
     analysis_dir = base_output_dir / args.analysis_name
     analysis_dir.mkdir(parents=True, exist_ok=True)
@@ -181,16 +181,17 @@ def main(argv: List[str] | None = None) -> None:
         if dataset_name in all_rank_freqs and dataset_name in static_stats_by_dataset:
             create_dataset_plots(
                 rank_freq_df,
-                analysis_dir,
+                base_output_dir,
                 dataset_name,
                 static_stats_by_dataset[dataset_name],
             )
             create_dataset_unfitted_plots(
                 rank_freq_df,
-                analysis_dir,
+                base_output_dir,
                 dataset_name,
             )
     print(f"\nAll RFC outputs saved to: {analysis_dir}")
+    print(f"Per-log RFC plots saved under: {base_output_dir}/<log>/")
 
 
 __all__ = [

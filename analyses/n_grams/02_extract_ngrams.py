@@ -12,9 +12,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from cli import extract_attachments
+from utils.constants import ATTACHMENTS_DIR
 from utils.io.attachments import NGRAM_CONCEPTS
 
-DEFAULT_CONCEPTS = ["variants", *NGRAM_CONCEPTS]
+DEFAULT_CONCEPTS = [*NGRAM_CONCEPTS, "variants"]
+CONCEPT_CHOICES = ["variants", "activities", "dfrs", *NGRAM_CONCEPTS]
 
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
@@ -29,7 +31,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=None,
-        help="Output root directory (default: results)",
+        help=f"Attachments root (default: {ATTACHMENTS_DIR})",
     )
     parser.add_argument(
         "--force",
@@ -40,17 +42,22 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--concepts",
         nargs="+",
         default=DEFAULT_CONCEPTS,
-        choices=["variants", "activities", "dfrs", *NGRAM_CONCEPTS],
-        help="Concepts to extract (default: variants + n1..n10)",
+        choices=CONCEPT_CHOICES,
+        help="Concepts to extract (default: n1..n10 + variants)",
     )
     return parser.parse_args(argv)
 
 
 def main(argv: List[str] | None = None) -> None:
     args = parse_args(argv)
-    forward = ["--datasets", *args.datasets, "--concepts", *args.concepts]
-    if args.output_dir:
-        forward.extend(["--output-dir", args.output_dir])
+    forward = [
+        "--datasets",
+        *args.datasets,
+        "--concepts",
+        *args.concepts,
+        "--output-dir",
+        args.output_dir or str(ATTACHMENTS_DIR),
+    ]
     if args.force:
         forward.append("--force")
     print(f"$ python cli/extract_attachments.py {' '.join(forward)}")

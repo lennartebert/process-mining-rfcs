@@ -5,16 +5,36 @@ Author: Lennart Ebert (lennart.ebert@hu-berlin.de).
 Utilities and CLI workflows for rank-frequency-curve (RFC) analysis in process mining, including:
 
 - attachment extraction from event logs,
-- static RFC/power-law fitting,
-- synthetic process simulation experiments
-- (under development) dynamic preferential-attachment analysis.
+- n-gram and variant power-law (Clauset) analysis,
+- synthetic process simulation experiments,
+- preferential-attachment measurement,
+- case-attribute analysis.
 
 ## TL;DR
 
 ### Online appendix files
-- `results/perm/log_info/log_info.csv`: Key statistics of logs under review
-- `results/perm/variants/rfc_static_analysis_summary.csv`: Model fitting results
-- `results/perm/experiments/...`: BPMN models and RFC curves of all experiments
+- `results/perm/…`: copy selected generated outputs here to keep them in git
+- Example snapshots currently under `results/perm/log_info/`, `results/perm/variants/`, `results/perm/experiments/`
+
+### Results layout (generated)
+
+```text
+results/
+  attachments/<concept>/<log>/attachments.csv.gz   # shared inputs
+  rfcs/log_info.csv|.tex                          # RFC-analysis log info (if produced there)
+  rfcs/experiments/…                               # simulation notebooks
+  rfcs/<log>/…                                     # per-log RFC plot PDFs
+  rfcs/<concept>/…                                 # tabular RFC/PDF analysis
+  n_grams/log_info.csv|.tex                        # n-grams pipeline log info
+  n_grams/<concept>/<model>/…                      # Clauset CSVs
+  n_grams/variant_power_law.csv|.tex
+  n_grams/log_n_scaling.csv|.tex
+  n_grams/plots/<log>/…
+  preferential_attachment/…
+  case_attributes/…
+  test/…                                           # --test smoke outputs
+  perm/…                                           # git-tracked permanent copies (manual)
+```
 
 ### Reproducing the study
 
@@ -30,7 +50,7 @@ python analyses/n_grams/main.py --datasets TEST_BPIC12
 More recipes: [`analyses/n_grams/README.md`](analyses/n_grams/README.md).
 
 If you want to (re)calculate attachments from raw logs, place your `.xes` files under `data/`, create a copy of the data dictionary (to be placed `data/data_dictionary.json`) and ensure refer to the data sets in the dictionary.
-If `results/.../attachments.csv.gz` already exists, extraction is skipped by default.
+If `results/attachments/.../attachments.csv.gz` already exists, extraction is skipped by default.
 
 You can also run the analysis/simulation notebooks:
 
@@ -44,19 +64,26 @@ Use the `process-mining-rfcs` Jupyter kernel for these notebooks.
 
 ## Repository structure
 
-The repo is structured as follows:
+```text
+data/                 # event logs, data_dictionary.json, images/
+results/              # generated outputs (see TL;DR layout; perm/ = git appendix)
+utils/                # reusable library (no CLI entrypoints)
+cli/                  # shared CLIs only (import utils/)
+  log_info.py
+  extract_attachments.py
+  clauset_power_law.py
+analyses/
+  rfcs/               # notebooks only
+  n_grams/            # 01 describe -> 02 extract -> 03 Clauset -> 04 compose
+  preferential_attachment/
+  case_attributes/    # 01 -> 02 -> 03 (+ main.py)
+  others/             # legacy / misc scripts (may be removed later)
+tests/
+```
 
-- `data/` contains event-log inputs, dataset metadata, and static assets (`data/images/`).
-- `results/` contains generated outputs (attachments, RFC analysis artifacts, and experiment artifacts). Permanent, version-controlled results live under `results/perm/`.
-- `utils/` contains reusable library modules (no CLI entrypoints).
-- `cli/` contains shared command-line tools only: `log_info.py`, `extract_attachments.py`, `clauset_power_law.py` (import `utils/` only).
-- `analyses/` contains topic pipelines and notebooks:
-  - `analyses/rfcs/` — notebooks only
-  - `analyses/n_grams/` — numbered n-gram / Clauset pipeline + `main.py`
-  - `analyses/preferential_attachment/` — preferential-attachment detection
-  - `analyses/case_attributes/` — case-attribute pipeline + `main.py`
-  - `analyses/others/` — legacy / misc scripts (may be removed later)
-- `tests/` contains unit tests.
+Dependency rule: analysis step scripts do not import each other. They may call
+shared `cli/` tools and `utils/`. Per-analysis `main.py` files only orchestrate
+ordered steps.
 
 ## Activity definition
 
@@ -67,9 +94,9 @@ For attachment extraction, variant counting, and activity statistics (`log_info`
 
 The same logic lives in `utils/io/activity_labels.py` and is used by `extract_attachments` and `log_info`.
 
-## Running the CLIs
+## Running analyses
 
-Shared tools (run from the repository root):
+Shared CLIs (run from the repository root):
 
 ```bash
 python cli/log_info.py --help
@@ -77,7 +104,7 @@ python cli/extract_attachments.py --help
 python cli/clauset_power_law.py --help
 ```
 
-Analysis pipelines:
+Topic pipelines:
 
 ```bash
 python analyses/n_grams/main.py --help
@@ -85,7 +112,13 @@ python analyses/case_attributes/main.py --help
 python analyses/preferential_attachment/detect_preferential_attachment.py --help
 ```
 
-Details: [`analyses/n_grams/README.md`](analyses/n_grams/README.md), [`analyses/case_attributes/README.md`](analyses/case_attributes/README.md), [`analyses/rfcs/README.md`](analyses/rfcs/README.md).
+Details:
+
+- [`analyses/n_grams/README.md`](analyses/n_grams/README.md)
+- [`analyses/case_attributes/README.md`](analyses/case_attributes/README.md)
+- [`analyses/preferential_attachment/README.md`](analyses/preferential_attachment/README.md)
+- [`analyses/rfcs/README.md`](analyses/rfcs/README.md)
+- [`analyses/others/README.md`](analyses/others/README.md)
 
 ## Data
 

@@ -4,6 +4,10 @@ Unnumbered helpers that are not part of the main `n_grams`,
 `preferential_attachment`, or `case_attributes` pipelines. Candidates for later
 removal.
 
+Defaults write under `results/rfcs/` (tables under `rfcs/<analysis-name>/`,
+per-log plot PDFs under `rfcs/<log>/`). Attachments are read from
+`results/attachments/`.
+
 | Script | Role |
 |--------|------|
 | `fit_static.py` | Static RFC fits/plots from attachments |

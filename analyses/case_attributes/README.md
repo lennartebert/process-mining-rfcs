@@ -4,6 +4,9 @@ Three-step pipeline for inspecting case attributes and testing power-law
 behaviour on selected attributes. Shared helpers live in `utils.rfc`
 (`case_attribute_*` modules); these scripts are analysis-specific.
 
+Outputs default to `results/case_attributes/` (per-log inventories/plots;
+Clauset CSVs under `results/case_attributes/powerlaw/<model>/`).
+
 Run from the repository root (so `data/` and `results/` resolve correctly):
 
 ```bash

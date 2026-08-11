@@ -154,3 +154,114 @@ def plot_continuous_ccdf_loglog(
     fig.tight_layout()
     fig.savefig(output_path, dpi=360, bbox_inches="tight")
     plt.close(fig)
+
+
+def _plot_alternative_overlay(
+    fit: powerlaw.Fit,
+    ax,
+    *,
+    kind: str,
+    alternative_name: str | None,
+) -> None:
+    """Overlay power-law and optional alternative PDF/CCDF curves on ``ax``."""
+    if kind == "pdf":
+        fit.power_law.plot_pdf(
+            ax=ax, color="black", linestyle="--", linewidth=1.5, label="Power law"
+        )
+    else:
+        fit.power_law.plot_ccdf(
+            ax=ax, color="black", linestyle="--", linewidth=1.5, label="Power law"
+        )
+    if not alternative_name:
+        return
+    try:
+        alt = getattr(fit, alternative_name)
+    except Exception:
+        return
+    plot_fn = alt.plot_pdf if kind == "pdf" else alt.plot_ccdf
+    try:
+        plot_fn(
+            ax=ax,
+            color="tab:blue",
+            linestyle=":",
+            linewidth=1.5,
+            label=alternative_name.replace("_", " "),
+        )
+    except Exception:
+        return
+
+
+def plot_fit_pdf_with_alternative(
+    values: np.ndarray,
+    output_path: Path,
+    *,
+    fit: powerlaw.Fit,
+    alternative_name: str | None = None,
+    title: str | None = None,
+    xlabel: str = "Frequency",
+) -> None:
+    """Log-log PDF: empirical + power law + optional alternative distribution."""
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values) & (values > 0)]
+    if values.size < 2:
+        return
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    try:
+        fit.plot_pdf(ax=ax, color="red", linewidth=1.8, label="Observed")
+        _plot_alternative_overlay(
+            fit, ax, kind="pdf", alternative_name=alternative_name
+        )
+    except (IndexError, ValueError, RuntimeError, AttributeError):
+        plt.close(fig)
+        return
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("PDF")
+    ax.grid(True, alpha=0.3)
+    if title:
+        ax.set_title(title)
+    ax.legend(fontsize=10)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=360, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_fit_ccdf_with_alternative(
+    values: np.ndarray,
+    output_path: Path,
+    *,
+    fit: powerlaw.Fit,
+    alternative_name: str | None = None,
+    title: str | None = None,
+    xlabel: str = "Frequency",
+) -> None:
+    """Log-log CCDF: empirical + power law + optional alternative distribution."""
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values) & (values > 0)]
+    if values.size < 2:
+        return
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    try:
+        fit.plot_ccdf(ax=ax, color="red", linewidth=1.8, label="Observed")
+        _plot_alternative_overlay(
+            fit, ax, kind="ccdf", alternative_name=alternative_name
+        )
+    except (IndexError, ValueError, RuntimeError, AttributeError):
+        plt.close(fig)
+        return
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("CCDF")
+    ax.grid(True, alpha=0.3)
+    if title:
+        ax.set_title(title)
+    ax.legend(fontsize=10)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=360, bbox_inches="tight")
+    plt.close(fig)

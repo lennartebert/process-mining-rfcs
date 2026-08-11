@@ -12,7 +12,15 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from cli import log_info
-from utils.constants import LOG_INFO_DIR
+from cli.log_info import ALL_STATS, DEFAULT_STATS
+from utils.constants import N_GRAMS_DIR
+
+# n_grams describe always includes trace-length stats by default.
+N_GRAMS_DEFAULT_STATS: List[str] = [
+    *DEFAULT_STATS,
+    "Median Trace Length",
+    "Max Trace Length",
+]
 
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
@@ -21,10 +29,21 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--datasets", nargs="+", required=True)
     parser.add_argument(
+        "--stats",
+        nargs="+",
+        default=list(N_GRAMS_DEFAULT_STATS),
+        choices=ALL_STATS,
+        help=(
+            "Log stats to extract (default: "
+            + ", ".join(f"'{s}'" for s in N_GRAMS_DEFAULT_STATS)
+            + ")."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
-        default=str(LOG_INFO_DIR),
-        help="Output directory for log-info tables (default: results/log_info)",
+        default=str(N_GRAMS_DIR),
+        help=f"Output directory for log_info.csv/.tex (default: {N_GRAMS_DIR})",
     )
     parser.add_argument(
         "--force-recalculate",
@@ -36,7 +55,14 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
 
 def main(argv: List[str] | None = None) -> None:
     args = parse_args(argv)
-    forward = ["--datasets", *args.datasets, "--output-dir", args.output_dir]
+    forward = [
+        "--datasets",
+        *args.datasets,
+        "--stats",
+        *args.stats,
+        "--output-dir",
+        args.output_dir,
+    ]
     if args.force_recalculate:
         forward.append("--force-recalculate")
     print(f"$ python cli/log_info.py {' '.join(forward)}")

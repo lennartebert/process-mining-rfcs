@@ -1,7 +1,7 @@
 """Shared CLI: Clauset-style discrete power-law evaluation from attachments.
 
 For a given attachments path (``dataset=path`` pairs), run GOF and model
-comparisons and write ``results/statistical_tests/<analysis-name>/``.
+comparisons and write ``results/<analysis-name>/<model>/``.
 """
 
 from __future__ import annotations
@@ -65,7 +65,8 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--analysis-name",
         type=str,
         required=True,
-        help="Subfolder name under results/statistical_tests for this run",
+        help="Subfolder name under the output root for this run "
+        "(e.g. n1 -> results/n_grams/n1/<model>/)",
     )
     parser.add_argument(
         "--output-dir",
@@ -103,6 +104,16 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         default=0.10,
         help="Significance level for GOF and model comparisons (default: 0.10)",
     )
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        default=list(DISTRIBUTION_NAMES),
+        choices=list(DISTRIBUTION_NAMES),
+        help=(
+            "Power-law models to fit (default: all three). "
+            "Example: --models lower_bounded_power_law"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -115,6 +126,7 @@ def analyze_one_dataset(
     minimum_fitted_variants: int,
     minimum_orders_of_magnitude: float,
     significance_level: float,
+    models: list[str] | tuple[str, ...],
 ) -> dict[str, dict[str, Any]]:
     """Run statistical tests for one attachments file."""
     del minimum_orders_of_magnitude  # retained for CLI compatibility; unused
@@ -129,6 +141,7 @@ def analyze_one_dataset(
         random_seed=random_seed,
         minimum_fitted_variants=minimum_fitted_variants,
         significance_level=significance_level,
+        models=models,
     )
 
 
@@ -137,12 +150,14 @@ def _error_results(
     dataset_name: str,
     attachments_path: Path,
     classification: str,
+    models: list[str] | tuple[str, ...],
 ) -> dict[str, dict[str, Any]]:
     """Build empty per-distribution outputs for a failed dataset."""
     return empty_powerlaw_results(
         log_name=dataset_name,
         input_path=str(attachments_path),
         classification=classification,
+        models=models,
     )
 
 
@@ -150,7 +165,7 @@ def main(argv: List[str] | None = None) -> None:
     """Run batch power-law statistical tests end-to-end."""
     args = parse_args(argv)
     output_root = Path(args.output_dir) if args.output_dir else RESULTS_DIR
-    analysis_dir = output_root / "statistical_tests" / args.analysis_name
+    analysis_dir = output_root / args.analysis_name
     analysis_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -159,9 +174,10 @@ def main(argv: List[str] | None = None) -> None:
         print(f"Error: {exc}")
         raise SystemExit(1) from exc
 
+    selected_models = tuple(args.models)
     accumulated: dict[str, dict[str, list]] = {
         name: {"gof_rows": [], "comparison_frames": [], "summary_rows": []}
-        for name in DISTRIBUTION_NAMES
+        for name in selected_models
     }
 
     print(f"Processing {len(input_pairs)} dataset(s)...")
@@ -169,6 +185,7 @@ def main(argv: List[str] | None = None) -> None:
         f"Bootstrap settings: n_bootstraps={args.n_bootstraps}, "
         f"random_seed={args.random_seed}"
     )
+    print(f"Models: {', '.join(selected_models)}")
     print(
         f"Classification thresholds: significance_level={args.significance_level}, "
         f"minimum_fitted_variants={args.minimum_fitted_variants}; "
@@ -184,6 +201,7 @@ def main(argv: List[str] | None = None) -> None:
                 dataset_name=dataset_name,
                 attachments_path=attachments_path,
                 classification="error during fitting (attachments file not found)",
+                models=selected_models,
             )
         else:
             try:
@@ -195,6 +213,7 @@ def main(argv: List[str] | None = None) -> None:
                     minimum_fitted_variants=args.minimum_fitted_variants,
                     minimum_orders_of_magnitude=args.minimum_orders_of_magnitude,
                     significance_level=args.significance_level,
+                    models=selected_models,
                 )
             except Exception as exc:  # noqa: BLE001 - keep batch resilient
                 print(f"  Warning: failed on {dataset_name}: {exc}")
@@ -202,9 +221,10 @@ def main(argv: List[str] | None = None) -> None:
                     dataset_name=dataset_name,
                     attachments_path=attachments_path,
                     classification=_classify_dataset_error(exc),
+                    models=selected_models,
                 )
 
-        for name in DISTRIBUTION_NAMES:
+        for name in selected_models:
             summary = dataset_results[name]["summary_row"]
             alpha = summary.get("alpha")
             gof_p = summary.get("gof_p")
@@ -232,12 +252,12 @@ def main(argv: List[str] | None = None) -> None:
         )
         print(f"  Checkpointed under: {analysis_dir}")
 
-    if not any(accumulated[name]["summary_rows"] for name in DISTRIBUTION_NAMES):
+    if not any(accumulated[name]["summary_rows"] for name in selected_models):
         print("Error: no datasets processed successfully")
         raise SystemExit(1)
 
     print(f"\nAll statistical-test outputs saved to: {analysis_dir}")
-    for name in DISTRIBUTION_NAMES:
+    for name in selected_models:
         print(f"  {analysis_dir / name}/{{gof,comparison,summary}}.csv")
 
 

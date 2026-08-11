@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import LOG_INFO_DIR, RESULTS_DIR
+from utils.constants import ATTACHMENTS_DIR, LOG_INFO_DIR, RFCS_DIR
 from utils.io import load_attachments
 from utils.parsing import parse_count
 
@@ -100,7 +100,7 @@ def _check_activities(
 def run_checks(
     datasets: List[str],
     concept: str,
-    output_root: Path,
+    attachments_root: Path,
     log_info_path: Path,
 ) -> List[str]:
     """Run integrity checks; return human-readable error messages."""
@@ -116,7 +116,9 @@ def run_checks(
 
     for dataset in datasets:
         row = log_info_df.loc[dataset]
-        attachments_path = output_root / concept / dataset / "attachments.csv.gz"
+        attachments_path = (
+            attachments_root / concept / dataset / "attachments.csv.gz"
+        )
         all_errors.extend(checker(dataset, row, attachments_path))
 
     return all_errors
@@ -140,16 +142,22 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         help="Concept whose attachments are compared to log_info",
     )
     parser.add_argument(
+        "--attachments-dir",
+        type=str,
+        default=None,
+        help=f"Attachments root (default: {ATTACHMENTS_DIR})",
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
-        help="Output root containing <concept>/<dataset>/attachments.csv.gz (default: results)",
+        help=f"Where to write integrity_checks.txt (default: {RFCS_DIR})",
     )
     parser.add_argument(
         "--log-info-path",
         type=str,
         default=None,
-        help="Path to log_info.csv (default: results/log_info/log_info.csv)",
+        help=f"Path to log_info.csv (default: {LOG_INFO_DIR / 'log_info.csv'})",
     )
     return parser.parse_args(argv)
 
@@ -163,14 +171,17 @@ def _write_report(output_root: Path, concept: str, lines: List[str]) -> Path:
 
 def main(argv: List[str] | None = None) -> None:
     args = parse_args(argv)
-    output_root = Path(args.output_dir) if args.output_dir else RESULTS_DIR
+    attachments_root = (
+        Path(args.attachments_dir) if args.attachments_dir else ATTACHMENTS_DIR
+    )
+    output_root = Path(args.output_dir) if args.output_dir else RFCS_DIR
     log_info_path = Path(args.log_info_path) if args.log_info_path else LOG_INFO_DIR / "log_info.csv"
 
     report_lines = [
         f"Running integrity checks (concept={args.concept}, datasets={len(args.datasets)})..."
     ]
     print(report_lines[0])
-    errors = run_checks(args.datasets, args.concept, output_root, log_info_path)
+    errors = run_checks(args.datasets, args.concept, attachments_root, log_info_path)
 
     if not errors and args.concept in SUPPORTED_CONCEPTS:
         report_lines.append(f"Integrity checks passed for {len(args.datasets)} dataset(s).")

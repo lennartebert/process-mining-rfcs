@@ -21,8 +21,8 @@ if str(REPO_ROOT) not in sys.path:
 from utils.constants import (
     ALL_REAL_LOG_DATASETS,
     ALL_REAL_LOGS_TOKEN,
+    CASE_ATTRIBUTES_DIR,
     DATA_DICTIONARY_PATH,
-    RESULTS_DIR,
 )
 from utils.io import get_data_dictionary, get_event_log_from_path
 from utils.io.case_tables import (
@@ -62,7 +62,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=str(RESULTS_DIR / "case_attribute_analysis"),
+        default=str(CASE_ATTRIBUTES_DIR),
     )
     parser.add_argument("--continuous-min-distinct", type=int, default=20)
     parser.add_argument("--default-n-bins", type=int, default=10)

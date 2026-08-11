@@ -16,6 +16,11 @@ from .activity_labels import (
 
 REQUIRED_ATTACHMENT_COLUMNS = ["attachment_time", "attachment_index", "node_id"]
 
+# Used when a trace is shorter than n for concepts n1..n10: right-pad to length n
+# and emit exactly one attachment node (see _ngram_nodes).
+PLACEHOLDER = "PLACEHOLDER"
+NGRAM_CONCEPTS = tuple(f"n{i}" for i in range(1, 11))
+
 
 def parse_dataset_input(raw_value: str) -> Tuple[str, Path]:
     """Parse one CLI input pair in the form <dataset>=<attachments_csv_path>."""
@@ -79,6 +84,23 @@ def trace_completion_data(event_log: EventLog) -> List[Dict[str, object]]:
     return trace_rows
 
 
+def _ngram_nodes(seq: Tuple[str, ...], n: int) -> List[str]:
+    """Return n-gram node ids for one activity sequence.
+
+    Assumptions:
+    - nk means contiguous subtraces of length k (n1 ≡ activities; n2 ≡ DFR pairs).
+    - If |trace| < n, right-pad with PLACEHOLDER to length n and emit one node.
+    - If |trace| >= n, emit sliding windows of length n.
+    - n1 node ids are bare activity strings; n2..n10 use str(tuple(...)).
+    """
+    if len(seq) < n:
+        padded = seq + (PLACEHOLDER,) * (n - len(seq))
+        return [str(padded[0]) if n == 1 else str(padded)]
+    if n == 1:
+        return [str(activity) for activity in seq]
+    return [str(seq[i : i + n]) for i in range(len(seq) - n + 1)]
+
+
 def _node_ids_for_concept(activity_sequence: Tuple[str, ...], concept: str) -> List[str]:
     """Return node ids contributed by one trace for the selected concept."""
     if concept == "variants":
@@ -87,6 +109,8 @@ def _node_ids_for_concept(activity_sequence: Tuple[str, ...], concept: str) -> L
         return [str(activity) for activity in activity_sequence]
     if concept == "dfrs":
         return [str((source, target)) for source, target in zip(activity_sequence, activity_sequence[1:])]
+    if concept in NGRAM_CONCEPTS:
+        return _ngram_nodes(activity_sequence, int(concept[1:]))
     raise ValueError(f"Unsupported concept: {concept}")
 
 

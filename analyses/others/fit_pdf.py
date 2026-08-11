@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import RESULTS_DIR
+from utils.constants import RFCS_DIR
 from utils.io import load_attachments, parse_dataset_inputs
 from utils.rfc import extract_frequency_counts
 
@@ -196,7 +196,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=None,
-        help="Output root directory (default: results)",
+        help=f"Output root directory (default: {RFCS_DIR})",
     )
     return parser.parse_args(argv)
 
@@ -204,7 +204,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
 def main(argv: List[str] | None = None) -> None:
     """Run PDF power-law analysis end-to-end."""
     args = parse_args(argv)
-    base_output_dir = Path(args.output_dir) if args.output_dir else RESULTS_DIR
+    base_output_dir = Path(args.output_dir) if args.output_dir else RFCS_DIR
     base_output_dir.mkdir(parents=True, exist_ok=True)
     analysis_dir = base_output_dir / args.analysis_name
     analysis_dir.mkdir(parents=True, exist_ok=True)

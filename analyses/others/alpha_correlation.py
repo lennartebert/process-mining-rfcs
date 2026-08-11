@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import LOG_INFO_DIR, RESULTS_DIR
+from utils.constants import LOG_INFO_DIR, RFCS_DIR
 from utils.parsing import parse_count
 
 LOG_METRICS: List[str] = [
@@ -115,7 +115,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--log-info-path",
         type=str,
         default=None,
-        help="Path to log_info.csv (default: results/log_info/log_info.csv)",
+        help=f"Path to log_info.csv (default: {LOG_INFO_DIR / 'log_info.csv'})",
     )
     parser.add_argument(
         "--static-analysis-path",
@@ -135,8 +135,8 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=str(RESULTS_DIR),
-        help="Output root directory (default: results)",
+        default=str(RFCS_DIR),
+        help=f"Output root directory (default: {RFCS_DIR})",
     )
     return parser.parse_args(argv)
 

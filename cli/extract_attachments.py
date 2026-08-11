@@ -8,6 +8,7 @@ as a script; otherwise `export PYTHONPATH="$PWD"`).
 Outputs are written as:
 `<output-root>/<concept>/<dataset>/attachments.csv.gz`
 where concept is one of: variants, activities, dfrs, n1..n10.
+Default output root: ``results/attachments``.
 """
 
 import argparse
@@ -19,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import DATA_DICTIONARY_PATH, RESULTS_DIR
+from utils.constants import ATTACHMENTS_DIR, DATA_DICTIONARY_PATH
 from utils.io import (
     extract_attachments_from_trace_data,
     get_data_dictionary,
@@ -38,7 +39,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=None,
-        help="Output root directory (default: results)",
+        help=f"Output root directory (default: {ATTACHMENTS_DIR})",
     )
     parser.add_argument(
         "--force",
@@ -58,7 +59,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
 def main(argv: List[str] | None = None) -> None:
     """Run extraction for all requested datasets."""
     args = parse_args(argv)
-    output_root = Path(args.output_dir) if args.output_dir else RESULTS_DIR
+    output_root = Path(args.output_dir) if args.output_dir else ATTACHMENTS_DIR
     output_root.mkdir(parents=True, exist_ok=True)
 
     # Load project dataset registry and validate requested names.
