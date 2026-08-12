@@ -24,7 +24,7 @@ if str(REPO_ROOT) not in sys.path:
 from cli.log_info import IDENTITY_COLUMNS, _write_latex_from_csv
 from utils.constants import N_GRAMS_DIR
 from utils.io.attachments import NGRAM_CONCEPTS
-from utils.rfc.statistical_tests import DISTRIBUTION_NAMES
+from utils.clauset import DISTRIBUTION_NAMES
 
 DEFAULT_CONCEPTS = [*NGRAM_CONCEPTS, "variants"]
 CONCEPT_CHOICES = ["variants", "activities", "dfrs", *NGRAM_CONCEPTS]

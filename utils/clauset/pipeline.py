@@ -1,4 +1,4 @@
-"""Shared Clauset-style power-law analysis for discrete or continuous data."""
+"""Orchestrate Clauset-style power-law analysis and CSV checkpoints."""
 
 from __future__ import annotations
 
@@ -8,25 +8,25 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .statistical_tests import (
+from .compare import compare_distribution
+from .constants import (
+    DEFAULT_MINIMUM_FITTED_TYPES,
     DISTRIBUTION_NAMES,
     DISTRIBUTION_SPECS,
     DOUBLY_BOUNDED_POWER_LAW,
     FULL_RANGE_POWER_LAW,
     LOWER_BOUNDED_POWER_LAW,
+)
+from .data import descriptive_observation_stats, to_observation_array
+from .evaluate import evaluate_doubly_bounded_power_law, evaluate_power_law_fit
+from .results import (
     best_other_distribution,
     build_summary_row,
     classify_power_law_result,
-    compare_distribution,
-    descriptive_observation_stats,
     empty_comparison_frame,
     empty_summary_row,
-    evaluate_doubly_bounded_power_law,
-    evaluate_power_law_fit,
     gof_row_from_evaluation,
     human_model_label,
-    to_observation_array,
-    DEFAULT_MINIMUM_FITTED_TYPES,
 )
 
 
@@ -132,7 +132,9 @@ def analyze_powerlaw_data(
                     classification="no eligible doubly bounded interval",
                     include_exclusion_fields=(name == DOUBLY_BOUNDED_POWER_LAW),
                 ),
-                "candidate_fits": candidate_fits if name == DOUBLY_BOUNDED_POWER_LAW else [],
+                "candidate_fits": (
+                    candidate_fits if name == DOUBLY_BOUNDED_POWER_LAW else []
+                ),
                 "descriptive_stats": descriptive_stats,
             }
             continue
@@ -190,7 +192,9 @@ def analyze_powerlaw_data(
             "gof_rows": gof_rows_by_dist[name],
             "comparison_df": comparison_df,
             "summary_row": summary_row,
-            "candidate_fits": candidate_fits if name == DOUBLY_BOUNDED_POWER_LAW else [],
+            "candidate_fits": (
+                candidate_fits if name == DOUBLY_BOUNDED_POWER_LAW else []
+            ),
             "descriptive_stats": descriptive_stats,
             "evaluation": evaluation,
         }

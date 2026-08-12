@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from utils.rfc.statistical_tests import (
+from utils.clauset.sampling import (
     _sample_discrete_power_law_truncated,
     _simulate_semiparametric_sample,
 )
@@ -114,7 +114,7 @@ class SemiparametricBootstrapGenerationTests(unittest.TestCase):
         while len(unbounded) < n:
             need = n - len(unbounded)
             # Reuse lower-bounded helper via truncated rejection path's sibling.
-            from utils.rfc.statistical_tests import (
+            from utils.clauset.sampling import (
                 _sample_discrete_power_law_lower_bounded,
             )
 

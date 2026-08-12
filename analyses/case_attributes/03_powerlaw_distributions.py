@@ -37,15 +37,13 @@ from utils.rfc.case_attribute_transform import (
     transform_by_datatype,
     value_frequency_counts,
 )
-from utils.rfc.powerlaw_pipeline import (
-    analyze_powerlaw_data,
-    append_and_checkpoint,
-    empty_powerlaw_results,
-)
-from utils.rfc.statistical_tests import (
+from utils.clauset import (
     DEFAULT_MINIMUM_FITTED_TYPES,
     DISTRIBUTION_NAMES,
     DOUBLY_BOUNDED_POWER_LAW,
+    analyze_powerlaw_data,
+    append_and_checkpoint,
+    empty_powerlaw_results,
 )
 
 

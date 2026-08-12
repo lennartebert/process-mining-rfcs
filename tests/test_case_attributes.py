@@ -37,7 +37,7 @@ from utils.rfc.case_attribute_transform import (
     value_frequency_counts,
 )
 from utils.io.case_tables import is_default_excluded_attribute
-from utils.rfc.powerlaw_pipeline import analyze_powerlaw_data
+from utils.clauset import analyze_powerlaw_data
 
 
 class TypeInferenceTests(unittest.TestCase):

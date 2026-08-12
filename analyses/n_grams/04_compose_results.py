@@ -24,14 +24,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import N_GRAMS_DIR
-from utils.io.attachments import NGRAM_CONCEPTS
-from utils.rfc import (
+from utils.clauset import (
+    DEFAULT_MINIMUM_FITTED_TYPES,
     DISTRIBUTION_NAMES,
     DOUBLY_BOUNDED_POWER_LAW,
     LOWER_BOUNDED_POWER_LAW,
 )
-from utils.rfc.statistical_tests import DEFAULT_MINIMUM_FITTED_TYPES
+from utils.constants import N_GRAMS_DIR
+from utils.io.attachments import NGRAM_CONCEPTS
 
 VARIANT_TABLE_COLUMNS = [
     "Log",
@@ -529,7 +529,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, {str(REPO_ROOT)!r})
 from utils.io import load_attachments
-from utils.rfc import extract_frequency_counts, fit_discrete_power_law
+from utils.clauset import fit_power_law
+from utils.rfc import extract_frequency_counts
 from utils.rfc.case_attribute_plotting import (
     plot_attribute_rfc_loglog,
     plot_fit_ccdf_with_alternative,
@@ -543,11 +544,11 @@ xmax = {xmax!r}
 model = {model!r}
 alt_name = {alt_name!r}
 if model == {DOUBLY_BOUNDED_POWER_LAW!r}:
-    fit_result = fit_discrete_power_law(frequencies, xmin=xmin, xmax=xmax)
+    fit_result = fit_power_law(frequencies, xmin=xmin, xmax=xmax, discrete=True)
 elif model == {LOWER_BOUNDED_POWER_LAW!r}:
-    fit_result = fit_discrete_power_law(frequencies, xmin=xmin, xmax=None)
+    fit_result = fit_power_law(frequencies, xmin=xmin, xmax=None, discrete=True)
 else:
-    fit_result = fit_discrete_power_law(frequencies, xmin=1.0, xmax=None)
+    fit_result = fit_power_law(frequencies, xmin=1.0, xmax=None, discrete=True)
 fit = fit_result.get("fit")
 if fit is not None:
     plot_fit_pdf_with_alternative(

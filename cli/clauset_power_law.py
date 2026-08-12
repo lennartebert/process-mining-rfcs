@@ -17,19 +17,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import RESULTS_DIR
-from utils.io import load_attachments, parse_dataset_inputs
-from utils.rfc import extract_frequency_counts
-from utils.rfc.powerlaw_pipeline import (
+from utils.clauset import (
+    DEFAULT_MINIMUM_FITTED_TYPES,
+    DISTRIBUTION_NAMES,
+    DOUBLY_BOUNDED_POWER_LAW,
     analyze_powerlaw_data,
     append_and_checkpoint,
     empty_powerlaw_results,
 )
-from utils.rfc.statistical_tests import (
-    DISTRIBUTION_NAMES,
-    DOUBLY_BOUNDED_POWER_LAW,
-    DEFAULT_MINIMUM_FITTED_TYPES,
-)
+from utils.constants import RESULTS_DIR
+from utils.io import load_attachments, parse_dataset_inputs
+from utils.rfc import extract_frequency_counts
 
 
 def _classify_dataset_error(exc: Exception) -> str:
