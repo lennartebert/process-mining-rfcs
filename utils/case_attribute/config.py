@@ -15,7 +15,7 @@ from typing import Any, Mapping
 import numpy as np
 import pandas as pd
 
-from .case_attribute_inventory import (
+from .inventory import (
     BINNING_METHODS,
     DATATYPES,
     AttributeInventory,

@@ -1,45 +1,16 @@
-"""Log-log RFC and PDF/CCDF plots for attribute distributions."""
+"""Log-log PDF/CCDF plotting helpers for power-law fits."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
 import powerlaw
 
-from .plotting import _apply_loglog_axes_style
 
-
-def plot_attribute_rfc_loglog(
-    frequencies: np.ndarray,
-    output_path: Path,
-    *,
-    title: str | None = None,
-) -> None:
-    """Write a log-log rank-frequency plot for positive integer counts."""
-    frequencies = np.asarray(frequencies, dtype=float)
-    frequencies = frequencies[np.isfinite(frequencies) & (frequencies > 0)]
-    if frequencies.size < 1:
-        return
-    ranks = np.arange(1, frequencies.size + 1, dtype=float)
-    y = np.sort(frequencies)[::-1]
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(ranks, y, "-", linewidth=1.8, color="red", alpha=0.9, label="Observed")
-    _apply_loglog_axes_style(ax, ranks, y)
-    ax.set_xlabel("Rank")
-    ax.set_ylabel("Frequency")
-    if title:
-        ax.set_title(title)
-    ax.legend(fontsize=10)
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=360, bbox_inches="tight")
-    plt.close(fig)
-
-
-def plot_attribute_pdf_loglog(
+def plot_pdf_loglog(
     frequencies: np.ndarray,
     output_path: Path,
     *,
@@ -264,4 +235,86 @@ def plot_fit_ccdf_with_alternative(
     ax.legend(fontsize=10)
     fig.tight_layout()
     fig.savefig(output_path, dpi=360, bbox_inches="tight")
+    plt.close(fig)
+
+
+def create_multiplot(
+    dataset_fits: Sequence[tuple[str, powerlaw.Fit]],
+    output_path: Path,
+) -> None:
+    """Create one multi-panel log-log PDF plot with fitted lines."""
+    if not dataset_fits:
+        return
+
+    n_cols = 3
+    n_rows = int(np.ceil(len(dataset_fits) / n_cols))
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=(5.0 * n_cols, 3.8 * n_rows), squeeze=False
+    )
+    flat_axes = axes.flatten()
+
+    for idx, (dataset_name, fit) in enumerate(dataset_fits):
+        ax = flat_axes[idx]
+        row_idx = idx // n_cols
+        col_idx = idx % n_cols
+        is_bottom_row = row_idx == (n_rows - 1)
+        is_left_column = col_idx == 0
+        try:
+            fit.plot_pdf(
+                ax=ax,
+                color="blue",
+                marker="o",
+                markersize=6.4,
+                markerfacecolor="none",
+                markeredgecolor="blue",
+                markeredgewidth=1.4,
+                linestyle="None",
+                label="Observed PDF",
+            )
+            fit.power_law.plot_pdf(
+                ax=ax, color="black", linestyle="--", linewidth=2.6, label="Power law fit"
+            )
+            fit.lognormal.plot_pdf(
+                ax=ax, color="red", linestyle=":", linewidth=2.6, label="Lognormal fit"
+            )
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.set_xlim(left=1)
+        except Exception:
+            ax.text(
+                0.5,
+                0.5,
+                "fit unavailable",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=10,
+            )
+        ax.set_title(dataset_name, fontsize=11)
+        ax.set_xlabel("Frequency" if is_bottom_row else "")
+        ax.set_ylabel("p(Frequency)" if is_left_column else "")
+        ax.grid(True, alpha=0.35, linewidth=1.15)
+        ax.tick_params(axis="both", which="both", width=1.35, labelsize=9.5)
+        for spine in ax.spines.values():
+            spine.set_linewidth(1.35)
+
+    for idx in range(len(dataset_fits), len(flat_axes)):
+        flat_axes[idx].set_visible(False)
+
+    handles, labels = flat_axes[0].get_legend_handles_labels()
+    if handles and labels:
+        fig.legend(
+            handles,
+            labels,
+            loc="lower center",
+            ncol=3,
+            frameon=False,
+            bbox_to_anchor=(0.5, 0.004),
+        )
+        fig.tight_layout(rect=(0, 0.033, 1, 1))
+    else:
+        fig.tight_layout()
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)

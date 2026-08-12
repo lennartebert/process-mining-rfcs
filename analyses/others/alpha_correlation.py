@@ -15,7 +15,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from utils.constants import LOG_INFO_DIR, RFCS_DIR
-from utils.parsing import parse_count
+from utils.io import parse_count
 
 LOG_METRICS: List[str] = [
     "# Cases",

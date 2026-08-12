@@ -18,6 +18,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from utils.powerlaw import (
+    DEFAULT_MINIMUM_FITTED_TYPES,
+    DISTRIBUTION_NAMES,
+    DOUBLY_BOUNDED_POWER_LAW,
+    accumulate_and_write_csvs,
+    empty_clauset_result,
+    run_clauset_pipeline,
+)
 from utils.constants import (
     ALL_REAL_LOG_DATASETS,
     ALL_REAL_LOGS_TOKEN,
@@ -26,24 +34,16 @@ from utils.constants import (
 )
 from utils.io import get_data_dictionary, get_event_log_from_path
 from utils.io.case_tables import build_case_attribute_table
-from utils.rfc.case_attribute_config import (
+from utils.case_attribute.config import (
     POWERLAW_SELECTION_FILENAME,
     load_csv,
     resolve_powerlaw_row,
 )
-from utils.rfc.case_attribute_transform import (
+from utils.case_attribute.transform import (
     TransformError,
     extract_continuous_values,
     transform_by_datatype,
     value_frequency_counts,
-)
-from utils.clauset import (
-    DEFAULT_MINIMUM_FITTED_TYPES,
-    DISTRIBUTION_NAMES,
-    DOUBLY_BOUNDED_POWER_LAW,
-    analyze_powerlaw_data,
-    append_and_checkpoint,
-    empty_powerlaw_results,
 )
 
 
@@ -69,6 +69,23 @@ def _classify_error(exc: Exception) -> str:
     ):
         return f"insufficient observations ({message})"
     return f"error during fitting ({message})"
+
+
+def _empty_all_models(
+    *,
+    log_name: str,
+    input_path: str,
+    classification: str,
+) -> dict[str, dict[str, Any]]:
+    return {
+        model: empty_clauset_result(
+            log_name=log_name,
+            input_path=input_path,
+            model=model,
+            classification=classification,
+        )
+        for model in DISTRIBUTION_NAMES
+    }
 
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
@@ -115,12 +132,12 @@ def analyze_one_attribute(
     minimum_fitted_types: int,
     significance_level: float,
 ) -> dict[str, dict[str, Any]]:
-    """Run shared Clauset stack for one included attribute."""
+    """Run Clauset once per model for one included attribute."""
     effective_cfg = resolve_powerlaw_row(entry)
     log_name = f"{dataset_name}::{attribute_name}"
 
     if not effective_cfg["include"]:
-        return empty_powerlaw_results(
+        return _empty_all_models(
             log_name=log_name,
             input_path=source_log_path,
             classification="skipped_not_included",
@@ -128,10 +145,30 @@ def analyze_one_attribute(
 
     datatype = effective_cfg["datatype"]
     discrete = bool(effective_cfg["discrete"])
+
     if datatype == "continuous":
         values = extract_continuous_values(case_df, attribute_name)
-        return analyze_powerlaw_data(
-            values,
+        observations = values
+    elif datatype in {"datetime", "identifier-like", "unsupported"}:
+        return _empty_all_models(
+            log_name=log_name,
+            input_path=source_log_path,
+            classification=f"skipped_handling (datatype {datatype!r})",
+        )
+    else:
+        transformed = transform_by_datatype(
+            case_df,
+            attribute_name,
+            datatype=datatype,
+            binning=effective_cfg["binning"],
+        )
+        observations = value_frequency_counts(transformed)
+
+    results: dict[str, dict[str, Any]] = {}
+    for model in DISTRIBUTION_NAMES:
+        results[model] = run_clauset_pipeline(
+            observations,
+            model=model,
             log_name=log_name,
             input_path=source_log_path,
             discrete=discrete,
@@ -140,31 +177,7 @@ def analyze_one_attribute(
             minimum_fitted_types=minimum_fitted_types,
             significance_level=significance_level,
         )
-
-    if datatype in {"datetime", "identifier-like", "unsupported"}:
-        return empty_powerlaw_results(
-            log_name=log_name,
-            input_path=source_log_path,
-            classification=f"skipped_handling (datatype {datatype!r})",
-        )
-
-    transformed = transform_by_datatype(
-        case_df,
-        attribute_name,
-        datatype=datatype,
-        binning=effective_cfg["binning"],
-    )
-    counts = value_frequency_counts(transformed)
-    return analyze_powerlaw_data(
-        counts,
-        log_name=log_name,
-        input_path=source_log_path,
-        discrete=discrete,
-        n_bootstraps=n_bootstraps,
-        random_seed=random_seed,
-        minimum_fitted_types=minimum_fitted_types,
-        significance_level=significance_level,
-    )
+    return results
 
 
 def main(argv: List[str] | None = None) -> None:
@@ -241,7 +254,7 @@ def main(argv: List[str] | None = None) -> None:
                 )
             except (TransformError, Exception) as exc:  # noqa: BLE001
                 print(f"    Warning: failed on {unit_name}: {exc}")
-                dataset_results = empty_powerlaw_results(
+                dataset_results = _empty_all_models(
                     log_name=unit_name,
                     input_path=str(log_path),
                     classification=_classify_error(exc),
@@ -254,11 +267,11 @@ def main(argv: List[str] | None = None) -> None:
                 if pd.notna(alpha) and pd.notna(gof_p):
                     extra = ""
                     if name == DOUBLY_BOUNDED_POWER_LAW and pd.notna(
-                        summary.get("excluded_head_variants")
+                        summary.get("doubly_bounded_exclude_head_variants")
                     ):
                         extra = (
-                            f", excluded_head_variants="
-                            f"{int(summary['excluded_head_variants'])}"
+                            f", doubly_bounded_exclude_head_variants="
+                            f"{int(summary['doubly_bounded_exclude_head_variants'])}"
                         )
                     print(
                         f"    {name}: alpha={float(alpha):.4f}, "
@@ -270,7 +283,7 @@ def main(argv: List[str] | None = None) -> None:
                         f"    {name}: classification={summary['classification']}"
                     )
 
-            append_and_checkpoint(
+            accumulate_and_write_csvs(
                 analysis_dir=analysis_dir,
                 accumulated=accumulated,
                 dataset_results=dataset_results,

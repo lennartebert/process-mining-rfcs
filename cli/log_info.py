@@ -16,8 +16,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from utils.constants import DATA_DICTIONARY_PATH, LOG_INFO_DIR
-from utils.io import get_data_dictionary, get_event_log_from_path, variant_and_activity_counts
-from utils.parsing import parse_count
+from utils.io import get_data_dictionary, get_event_log_from_path, parse_count, variant_and_activity_counts
 
 
 IDENTITY_COLUMNS: List[str] = ["Log", "Description"]

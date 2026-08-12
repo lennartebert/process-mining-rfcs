@@ -29,14 +29,14 @@ from utils.io.case_tables import (
     build_case_attribute_table,
     candidate_attribute_names,
 )
-from utils.rfc.case_attribute_config import (
+from utils.case_attribute.config import (
     INVENTORY_FILENAME,
     build_inventory_row,
     load_csv,
     merge_inventory_dataframe,
     write_csv,
 )
-from utils.rfc.case_attribute_inventory import (
+from utils.case_attribute.inventory import (
     RecommendationThresholds,
     describe_attribute,
     recommend_datatype,

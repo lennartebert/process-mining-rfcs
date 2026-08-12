@@ -1,5 +1,9 @@
 """I/O helpers for event logs and attachments."""
 
+from __future__ import annotations
+
+import pandas as pd
+
 from .activity_labels import (
     ACTIVITY_CLASSIFIER_NAME,
     format_event_activity,
@@ -32,6 +36,19 @@ from .event_logs import (
     get_event_log_from_path,
 )
 
+
+def parse_count(value: object) -> float:
+    """Parse a count stored as a number or a comma-formatted string."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return float("nan")
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if not text:
+        return float("nan")
+    return float(text.replace(",", ""))
+
+
 __all__ = [
     "ACTIVITY_CLASSIFIER_NAME",
     "CASE_ID_COLUMN",
@@ -49,6 +66,7 @@ __all__ = [
     "format_event_activity",
     "load_attachments",
     "parse_classifier_keys",
+    "parse_count",
     "parse_dataset_input",
     "parse_dataset_inputs",
     "resolve_activity_classifier_fields",

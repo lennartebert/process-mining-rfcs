@@ -12,7 +12,7 @@ from typing import Any, Mapping
 import numpy as np
 import pandas as pd
 
-from .case_attribute_inventory import MISSING_LABEL, _is_missing, _to_float
+from .inventory import MISSING_LABEL, _is_missing, _to_float
 
 NONPOSITIVE_LABEL = "__NONPOSITIVE__"
 

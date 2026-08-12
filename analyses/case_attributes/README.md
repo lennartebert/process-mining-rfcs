@@ -1,8 +1,8 @@
 # Case-attribute analysis
 
 Three-step pipeline for inspecting case attributes and testing power-law
-behaviour on selected attributes. Case-attribute helpers live in `utils.rfc`
-(`case_attribute_*` modules); Clauset fitting lives in `utils.clauset`.
+behaviour on selected attributes. Case-attribute helpers live in
+`utils.case_attribute`; power-law fitting lives in `utils.powerlaw`.
 These scripts are analysis-specific.
 
 Outputs default to `results/case_attributes/` (per-log inventories/plots;

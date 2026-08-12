@@ -17,13 +17,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.clauset import (
+from utils.powerlaw import (
     DEFAULT_MINIMUM_FITTED_TYPES,
     DISTRIBUTION_NAMES,
     DOUBLY_BOUNDED_POWER_LAW,
-    analyze_powerlaw_data,
-    append_and_checkpoint,
-    empty_powerlaw_results,
+    accumulate_and_write_csvs,
+    empty_clauset_result,
+    run_clauset_pipeline,
 )
 from utils.constants import RESULTS_DIR
 from utils.io import load_attachments, parse_dataset_inputs
@@ -95,12 +95,6 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--minimum-orders-of-magnitude",
-        type=float,
-        default=1.0,
-        help="Minimum log10(xmax/xmin) for doubly bounded eligibility",
-    )
-    parser.add_argument(
         "--significance-level",
         type=float,
         default=0.10,
@@ -113,6 +107,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         choices=list(DISTRIBUTION_NAMES),
         help=(
             "Power-law models to fit (default: all three). "
+            "Each model is run as a separate pipeline call. "
             "Example: --models lower_bounded_power_law"
         ),
     )
@@ -134,25 +129,26 @@ def analyze_one_dataset(
     n_bootstraps: int,
     random_seed: int,
     minimum_fitted_types: int,
-    minimum_orders_of_magnitude: float,
     significance_level: float,
     models: list[str] | tuple[str, ...],
 ) -> dict[str, dict[str, Any]]:
-    """Run statistical tests for one attachments file."""
-    del minimum_orders_of_magnitude  # retained for CLI compatibility; unused
+    """Run one Clauset pipeline call per selected model."""
     attachments_df = load_attachments(attachments_path)
     counts = extract_frequency_counts(attachments_df)
-    return analyze_powerlaw_data(
-        counts,
-        log_name=dataset_name,
-        input_path=str(attachments_path),
-        discrete=True,
-        n_bootstraps=n_bootstraps,
-        random_seed=random_seed,
-        minimum_fitted_types=minimum_fitted_types,
-        significance_level=significance_level,
-        models=models,
-    )
+    results: dict[str, dict[str, Any]] = {}
+    for model in models:
+        results[model] = run_clauset_pipeline(
+            counts,
+            model=model,
+            log_name=dataset_name,
+            input_path=str(attachments_path),
+            discrete=True,
+            n_bootstraps=n_bootstraps,
+            random_seed=random_seed,
+            minimum_fitted_types=minimum_fitted_types,
+            significance_level=significance_level,
+        )
+    return results
 
 
 def _error_results(
@@ -162,13 +158,16 @@ def _error_results(
     classification: str,
     models: list[str] | tuple[str, ...],
 ) -> dict[str, dict[str, Any]]:
-    """Build empty per-distribution outputs for a failed dataset."""
-    return empty_powerlaw_results(
-        log_name=dataset_name,
-        input_path=str(attachments_path),
-        classification=classification,
-        models=models,
-    )
+    """Build empty per-model outputs for a failed dataset."""
+    return {
+        model: empty_clauset_result(
+            log_name=dataset_name,
+            input_path=str(attachments_path),
+            model=model,
+            classification=classification,
+        )
+        for model in models
+    }
 
 
 def main(argv: List[str] | None = None) -> None:
@@ -199,9 +198,7 @@ def main(argv: List[str] | None = None) -> None:
     print(f"Models: {', '.join(selected_models)}")
     print(
         f"Classification thresholds: significance_level={args.significance_level}, "
-        f"minimum_fitted_types={args.minimum_fitted_types}; "
-        f"doubly bounded xmax = min KS among EXCLUDED_HEAD_VARIANTS "
-        f"(min log-range arg={args.minimum_orders_of_magnitude} unused for selection)"
+        f"minimum_fitted_types={args.minimum_fitted_types}"
     )
     if args.parallel:
         print("Parallel mode: writing per-log CSV shards")
@@ -224,7 +221,6 @@ def main(argv: List[str] | None = None) -> None:
                     n_bootstraps=args.n_bootstraps,
                     random_seed=args.random_seed,
                     minimum_fitted_types=args.minimum_fitted_types,
-                    minimum_orders_of_magnitude=args.minimum_orders_of_magnitude,
                     significance_level=args.significance_level,
                     models=selected_models,
                 )
@@ -244,11 +240,11 @@ def main(argv: List[str] | None = None) -> None:
             if pd.notna(alpha) and pd.notna(gof_p):
                 extra = ""
                 if name == DOUBLY_BOUNDED_POWER_LAW and pd.notna(
-                    summary.get("excluded_head_variants")
+                    summary.get("doubly_bounded_exclude_head_variants")
                 ):
                     extra = (
-                        f", excluded_head_variants="
-                        f"{int(summary['excluded_head_variants'])}"
+                        f", doubly_bounded_exclude_head_variants="
+                        f"{int(summary['doubly_bounded_exclude_head_variants'])}"
                     )
                 print(
                     f"  {name}: alpha={float(alpha):.4f}, "
@@ -263,7 +259,7 @@ def main(argv: List[str] | None = None) -> None:
                 name: {"gof_rows": [], "comparison_frames": [], "summary_rows": []}
                 for name in selected_models
             }
-            append_and_checkpoint(
+            accumulate_and_write_csvs(
                 analysis_dir=analysis_dir,
                 accumulated=shard_acc,
                 dataset_results=dataset_results,
@@ -277,7 +273,7 @@ def main(argv: List[str] | None = None) -> None:
                 f"{{model}}/{{gof,comparison,summary}}_{dataset_name}.csv"
             )
         else:
-            append_and_checkpoint(
+            accumulate_and_write_csvs(
                 analysis_dir=analysis_dir,
                 accumulated=accumulated,
                 dataset_results=dataset_results,

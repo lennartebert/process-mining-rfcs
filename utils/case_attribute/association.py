@@ -11,7 +11,7 @@ from typing import Any, Sequence
 import numpy as np
 import pandas as pd
 
-from .case_attribute_inventory import MISSING_LABEL, _is_missing
+from .inventory import MISSING_LABEL, _is_missing
 from utils.io.case_tables import is_event_aggregation_column
 
 

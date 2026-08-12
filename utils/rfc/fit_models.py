@@ -2,13 +2,30 @@
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Tuple, TypedDict
 
 import numpy as np
 
-from .types import FitStatistics
-
 DEFAULT_BOUNDED_MIN_FREQUENCY = 2.0
+
+
+class FitStatistics(TypedDict, total=False):
+    """Fitted-curve parameters and scoring metrics for one RFC series."""
+
+    linear_a: float
+    linear_b: float
+    linear_nll: float
+    exponential_a: float
+    exponential_b: float
+    exponential_nll: float
+    power_c: float
+    power_alpha: float
+    power_nll: float
+    bounded_power_min_frequency: float
+    bounded_power_c: float
+    bounded_power_alpha: float
+    bounded_power_nll: float
+    best_fit: str
 
 
 def fit_linear(x: np.ndarray, y: np.ndarray) -> Tuple[float, float]:

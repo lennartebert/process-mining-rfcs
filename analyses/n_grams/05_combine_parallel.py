@@ -24,7 +24,7 @@ if str(REPO_ROOT) not in sys.path:
 from cli.log_info import IDENTITY_COLUMNS, _write_latex_from_csv
 from utils.constants import N_GRAMS_DIR
 from utils.io.attachments import NGRAM_CONCEPTS
-from utils.clauset import DISTRIBUTION_NAMES
+from utils.powerlaw import DISTRIBUTION_NAMES
 
 DEFAULT_CONCEPTS = [*NGRAM_CONCEPTS, "variants"]
 CONCEPT_CHOICES = ["variants", "activities", "dfrs", *NGRAM_CONCEPTS]
@@ -114,7 +114,7 @@ def combine_clauset(output_dir: Path, concepts: Sequence[str]) -> None:
                 if stem == "comparison":
                     sort_cols = ["log_name", "model_2"]
                 elif stem == "gof":
-                    sort_cols = ["log_name", "excluded_head_variants"]
+                    sort_cols = ["log_name", "doubly_bounded_exclude_head_variants"]
                 _combine_glob(
                     model_dir,
                     f"{stem}_*.csv",

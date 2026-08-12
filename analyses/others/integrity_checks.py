@@ -14,8 +14,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from utils.constants import ATTACHMENTS_DIR, LOG_INFO_DIR, RFCS_DIR
-from utils.io import load_attachments
-from utils.parsing import parse_count
+from utils.io import load_attachments, parse_count
 
 SUPPORTED_CONCEPTS = ("variants", "activities")
 

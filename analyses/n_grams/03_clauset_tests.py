@@ -23,7 +23,7 @@ if str(REPO_ROOT) not in sys.path:
 from cli import clauset_power_law
 from utils.constants import ATTACHMENTS_DIR, N_GRAMS_DIR
 from utils.io.attachments import NGRAM_CONCEPTS
-from utils.clauset import DISTRIBUTION_NAMES, LOWER_BOUNDED_POWER_LAW
+from utils.powerlaw import DISTRIBUTION_NAMES, LOWER_BOUNDED_POWER_LAW
 
 DEFAULT_CONCEPTS = [*NGRAM_CONCEPTS, "variants"]
 CONCEPT_CHOICES = ["variants", "activities", "dfrs", *NGRAM_CONCEPTS]

@@ -8,11 +8,9 @@ from typing import List
 import numpy as np
 import pandas as pd
 import powerlaw
-
 import matplotlib
 
 matplotlib.use("Agg")  # Headless backend for CLI/batch runs.
-import matplotlib.pyplot as plt
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -20,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from utils.constants import RFCS_DIR
 from utils.io import load_attachments, parse_dataset_inputs
+from utils.powerlaw.plotting import create_multiplot
 from utils.rfc import extract_frequency_counts
 
 
@@ -95,64 +94,6 @@ def _collect_fit_row(dataset_name: str, counts: np.ndarray, fit: powerlaw.Fit) -
         "power_law_vs_lognormal_R": r_lognormal,
         "power_law_vs_lognormal_p": p_lognormal,
     }
-
-
-def create_multiplot(dataset_fits: List[tuple[str, powerlaw.Fit]], output_path: Path) -> None:
-    """Create one multi-panel log-log PDF plot with fitted lines."""
-    if not dataset_fits:
-        return
-
-    n_cols = 3
-    n_rows = int(np.ceil(len(dataset_fits) / n_cols))
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5.0 * n_cols, 3.8 * n_rows), squeeze=False)
-    flat_axes = axes.flatten()
-
-    for idx, (dataset_name, fit) in enumerate(dataset_fits):
-        ax = flat_axes[idx]
-        row_idx = idx // n_cols
-        col_idx = idx % n_cols
-        is_bottom_row = row_idx == (n_rows - 1)
-        is_left_column = col_idx == 0
-        try:
-            fit.plot_pdf(
-                ax=ax,
-                color="blue",
-                marker="o",
-                markersize=6.4,
-                markerfacecolor="none",
-                markeredgecolor="blue",
-                markeredgewidth=1.4,
-                linestyle="None",
-                label="Observed PDF",
-            )
-            fit.power_law.plot_pdf(ax=ax, color="black", linestyle="--", linewidth=2.6, label="Power law fit")
-            fit.lognormal.plot_pdf(ax=ax, color="red", linestyle=":", linewidth=2.6, label="Lognormal fit")
-            ax.set_xscale("log")
-            ax.set_yscale("log")
-            ax.set_xlim(left=1)
-        except Exception:
-            ax.text(0.5, 0.5, "fit unavailable", ha="center", va="center", transform=ax.transAxes, fontsize=10)
-        ax.set_title(dataset_name, fontsize=11)
-        ax.set_xlabel("Frequency" if is_bottom_row else "")
-        ax.set_ylabel("p(Frequency)" if is_left_column else "")
-        ax.grid(True, alpha=0.35, linewidth=1.15)
-        ax.tick_params(axis="both", which="both", width=1.35, labelsize=9.5)
-        for spine in ax.spines.values():
-            spine.set_linewidth(1.35)
-
-    for idx in range(len(dataset_fits), len(flat_axes)):
-        flat_axes[idx].set_visible(False)
-
-    handles, labels = flat_axes[0].get_legend_handles_labels()
-    if handles and labels:
-        fig.legend(handles, labels, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 0.004))
-        fig.tight_layout(rect=(0, 0.033, 1, 1))
-    else:
-        fig.tight_layout()
-
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"  Saved: {output_path.name}")
 
 
 def create_distribution_comparison_tables(summary_df: pd.DataFrame, output_dir: Path) -> None:
@@ -251,7 +192,9 @@ def main(argv: List[str] | None = None) -> None:
     print(f"\nSaved: {summary_path.name}")
 
     create_distribution_comparison_tables(summary_df, analysis_dir)
-    create_multiplot(dataset_fits, analysis_dir / "pdf_powerlaw_fits.pdf")
+    multiplot_path = analysis_dir / "pdf_powerlaw_fits.pdf"
+    create_multiplot(dataset_fits, multiplot_path)
+    print(f"  Saved: {multiplot_path.name}")
     print(f"\nAll PDF power-law outputs saved to: {analysis_dir}")
 
 

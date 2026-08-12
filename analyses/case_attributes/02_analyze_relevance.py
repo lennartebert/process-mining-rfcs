@@ -28,8 +28,8 @@ from utils.constants import (
 )
 from utils.io import get_data_dictionary, get_event_log_from_path
 from utils.io.case_tables import VARIANT_COLUMN, build_case_attribute_table
-from utils.rfc.case_attribute_association import associate_attribute_with_variant
-from utils.rfc.case_attribute_config import (
+from utils.case_attribute.association import associate_attribute_with_variant
+from utils.case_attribute.config import (
     INVENTORY_FILENAME,
     POWERLAW_SELECTION_FILENAME,
     ConfigValidationError,
@@ -39,17 +39,17 @@ from utils.rfc.case_attribute_config import (
     resolve_inventory_row,
     write_csv,
 )
-from utils.rfc.case_attribute_inventory import (
+from utils.case_attribute.inventory import (
     RecommendationThresholds,
     recommend_powerlaw_include,
 )
-from utils.rfc.case_attribute_plotting import (
-    plot_attribute_pdf_loglog,
-    plot_attribute_rfc_loglog,
+from utils.case_attribute.plotting import plot_attribute_rfc_loglog
+from utils.powerlaw.plotting import (
     plot_continuous_ccdf_loglog,
     plot_continuous_pdf_loglog,
+    plot_pdf_loglog,
 )
-from utils.rfc.case_attribute_transform import (
+from utils.case_attribute.transform import (
     TransformError,
     extract_continuous_values,
     transform_by_datatype,
@@ -160,7 +160,7 @@ def analyze_one_log(
                             title=f"{log_name} / {attr_name}",
                         )
                     else:
-                        plot_attribute_pdf_loglog(
+                        plot_pdf_loglog(
                             counts,
                             attr_plot_dir / "pdf_loglog.pdf",
                             title=f"{log_name} / {attr_name}",
