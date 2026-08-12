@@ -26,6 +26,7 @@ from .statistical_tests import (
     gof_row_from_evaluation,
     human_model_label,
     to_observation_array,
+    DEFAULT_MINIMUM_FITTED_TYPES,
 )
 
 
@@ -52,7 +53,7 @@ def analyze_powerlaw_data(
     discrete: bool = True,
     n_bootstraps: int = 1000,
     random_seed: int = 42,
-    minimum_fitted_variants: int = 50,
+    minimum_fitted_types: int = DEFAULT_MINIMUM_FITTED_TYPES,
     significance_level: float = 0.10,
     models: tuple[str, ...] | list[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
@@ -98,7 +99,7 @@ def analyze_powerlaw_data(
         )
         evaluations[name] = evaluation
         gof_row = gof_row_from_evaluation(log_name=log_name, evaluation=evaluation)
-        gof_rows_by_dist[name] = [] if gof_row is None else [gof_row]
+        gof_rows_by_dist[name] = [gof_row]
 
     if DOUBLY_BOUNDED_POWER_LAW in selected_models:
         db_selected, candidate_fits = evaluate_doubly_bounded_power_law(
@@ -116,9 +117,7 @@ def analyze_powerlaw_data(
                 evaluation=db_selected,
                 selected=True,
             )
-            gof_rows_by_dist[DOUBLY_BOUNDED_POWER_LAW] = (
-                [] if gof_row is None else [gof_row]
-            )
+            gof_rows_by_dist[DOUBLY_BOUNDED_POWER_LAW] = [gof_row]
 
     results: dict[str, dict[str, Any]] = {}
     for name in selected_models:
@@ -151,19 +150,30 @@ def analyze_powerlaw_data(
             comparison_df = empty_comparison_frame(log_name, model_1=name)
             best_other = None
 
-        n_fitted = evaluation.get("n_fitted_variants")
-        n_fitted_variants = 0 if n_fitted is None or pd.isna(n_fitted) else int(n_fitted)
+        n_fitted = evaluation.get("n_fitted_types")
+        n_fitted_types = 0 if n_fitted is None or pd.isna(n_fitted) else int(n_fitted)
+        comparison_df = comparison_df.copy()
+        comparison_df["n_fitted_types"] = n_fitted_types
+        comparison_df = comparison_df.loc[
+            :,
+            ["log_name", "n_fitted_types"]
+            + [
+                c
+                for c in comparison_df.columns
+                if c not in ("log_name", "n_fitted_types")
+            ],
+        ]
         gof_p_raw = evaluation.get("gof_p")
         try:
             gof_p = float(gof_p_raw)
         except (TypeError, ValueError):
             gof_p = float("nan")
         classification = classify_power_law_result(
-            n_fitted_variants=n_fitted_variants,
+            n_fitted_types=n_fitted_types,
             gof_p=gof_p,
             comparison_df=comparison_df,
             model_label=human_model_label(name),
-            minimum_fitted_variants=minimum_fitted_variants,
+            minimum_fitted_types=minimum_fitted_types,
             significance_level=significance_level,
             fit_valid=fit_valid,
             pathology_flags=evaluation.get("pathology_flags") or [],
@@ -218,8 +228,13 @@ def append_and_checkpoint(
     analysis_dir: Path,
     accumulated: dict[str, dict[str, list]],
     dataset_results: dict[str, dict[str, Any]],
+    file_suffix: str = "",
 ) -> None:
-    """Append one unit's results and checkpoint CSVs per distribution."""
+    """Append one unit's results and checkpoint CSVs per distribution.
+
+    ``file_suffix`` is inserted before the extension, e.g. ``"_BPIC12"`` yields
+    ``gof_BPIC12.csv``. Empty string keeps the default ``gof.csv`` names.
+    """
     for name in accumulated:
         dist_dir = analysis_dir / name
         dist_dir.mkdir(parents=True, exist_ok=True)
@@ -248,6 +263,6 @@ def append_and_checkpoint(
             .reset_index(drop=True)
         )
 
-        gof_df.to_csv(dist_dir / "gof.csv", index=False)
-        comparison_df.to_csv(dist_dir / "comparison.csv", index=False)
-        summary_df.to_csv(dist_dir / "summary.csv", index=False)
+        gof_df.to_csv(dist_dir / f"gof{file_suffix}.csv", index=False)
+        comparison_df.to_csv(dist_dir / f"comparison{file_suffix}.csv", index=False)
+        summary_df.to_csv(dist_dir / f"summary{file_suffix}.csv", index=False)

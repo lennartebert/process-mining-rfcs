@@ -50,6 +50,11 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Ignore cached CSV rows and recompute metrics from event logs",
     )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help="Forward --parallel to cli/log_info.py (per-log CSV shard, no LaTeX)",
+    )
     return parser.parse_args(argv)
 
 
@@ -65,6 +70,8 @@ def main(argv: List[str] | None = None) -> None:
     ]
     if args.force_recalculate:
         forward.append("--force-recalculate")
+    if args.parallel:
+        forward.append("--parallel")
     print(f"$ python cli/log_info.py {' '.join(forward)}")
     log_info.main(forward)
 

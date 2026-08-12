@@ -28,6 +28,7 @@ from utils.rfc.powerlaw_pipeline import (
 from utils.rfc.statistical_tests import (
     DISTRIBUTION_NAMES,
     DOUBLY_BOUNDED_POWER_LAW,
+    DEFAULT_MINIMUM_FITTED_TYPES,
 )
 
 
@@ -87,10 +88,13 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         help="Random seed for bootstrap resampling (default: 42)",
     )
     parser.add_argument(
-        "--minimum-fitted-variants",
+        "--minimum-fitted-types",
         type=int,
-        default=50,
-        help="Minimum fitted-region variants required for eligibility/classification",
+        default=DEFAULT_MINIMUM_FITTED_TYPES,
+        help=(
+            "Minimum fitted-region types for classification step (1) "
+            f"(default: {DEFAULT_MINIMUM_FITTED_TYPES})"
+        ),
     )
     parser.add_argument(
         "--minimum-orders-of-magnitude",
@@ -114,6 +118,14 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
             "Example: --models lower_bounded_power_law"
         ),
     )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help=(
+            "Write per-log shards gof_<log>.csv / comparison_<log>.csv / "
+            "summary_<log>.csv instead of aggregated CSVs"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -123,7 +135,7 @@ def analyze_one_dataset(
     attachments_path: Path,
     n_bootstraps: int,
     random_seed: int,
-    minimum_fitted_variants: int,
+    minimum_fitted_types: int,
     minimum_orders_of_magnitude: float,
     significance_level: float,
     models: list[str] | tuple[str, ...],
@@ -139,7 +151,7 @@ def analyze_one_dataset(
         discrete=True,
         n_bootstraps=n_bootstraps,
         random_seed=random_seed,
-        minimum_fitted_variants=minimum_fitted_variants,
+        minimum_fitted_types=minimum_fitted_types,
         significance_level=significance_level,
         models=models,
     )
@@ -179,6 +191,7 @@ def main(argv: List[str] | None = None) -> None:
         name: {"gof_rows": [], "comparison_frames": [], "summary_rows": []}
         for name in selected_models
     }
+    any_success = False
 
     print(f"Processing {len(input_pairs)} dataset(s)...")
     print(
@@ -188,10 +201,12 @@ def main(argv: List[str] | None = None) -> None:
     print(f"Models: {', '.join(selected_models)}")
     print(
         f"Classification thresholds: significance_level={args.significance_level}, "
-        f"minimum_fitted_variants={args.minimum_fitted_variants}; "
+        f"minimum_fitted_types={args.minimum_fitted_types}; "
         f"doubly bounded xmax = min KS among EXCLUDED_HEAD_VARIANTS "
         f"(min log-range arg={args.minimum_orders_of_magnitude} unused for selection)"
     )
+    if args.parallel:
+        print("Parallel mode: writing per-log CSV shards")
 
     for dataset_name, attachments_path in input_pairs:
         print(f"\nProcessing {dataset_name}...")
@@ -210,7 +225,7 @@ def main(argv: List[str] | None = None) -> None:
                     attachments_path=attachments_path,
                     n_bootstraps=args.n_bootstraps,
                     random_seed=args.random_seed,
-                    minimum_fitted_variants=args.minimum_fitted_variants,
+                    minimum_fitted_types=args.minimum_fitted_types,
                     minimum_orders_of_magnitude=args.minimum_orders_of_magnitude,
                     significance_level=args.significance_level,
                     models=selected_models,
@@ -245,20 +260,46 @@ def main(argv: List[str] | None = None) -> None:
             else:
                 print(f"  {name}: classification={summary['classification']}")
 
-        append_and_checkpoint(
-            analysis_dir=analysis_dir,
-            accumulated=accumulated,
-            dataset_results=dataset_results,
-        )
-        print(f"  Checkpointed under: {analysis_dir}")
+        if args.parallel:
+            shard_acc: dict[str, dict[str, list]] = {
+                name: {"gof_rows": [], "comparison_frames": [], "summary_rows": []}
+                for name in selected_models
+            }
+            append_and_checkpoint(
+                analysis_dir=analysis_dir,
+                accumulated=shard_acc,
+                dataset_results=dataset_results,
+                file_suffix=f"_{dataset_name}",
+            )
+            any_success = any(
+                shard_acc[name]["summary_rows"] for name in selected_models
+            ) or any_success
+            print(
+                f"  Checkpointed shards under: {analysis_dir}/"
+                f"{{model}}/{{gof,comparison,summary}}_{dataset_name}.csv"
+            )
+        else:
+            append_and_checkpoint(
+                analysis_dir=analysis_dir,
+                accumulated=accumulated,
+                dataset_results=dataset_results,
+            )
+            print(f"  Checkpointed under: {analysis_dir}")
 
-    if not any(accumulated[name]["summary_rows"] for name in selected_models):
-        print("Error: no datasets processed successfully")
-        raise SystemExit(1)
-
-    print(f"\nAll statistical-test outputs saved to: {analysis_dir}")
-    for name in selected_models:
-        print(f"  {analysis_dir / name}/{{gof,comparison,summary}}.csv")
+    if args.parallel:
+        if not any_success:
+            print("Error: no datasets processed successfully")
+            raise SystemExit(1)
+        print(f"\nAll statistical-test shards saved under: {analysis_dir}")
+        for name in selected_models:
+            print(f"  {analysis_dir / name}/{{gof,comparison,summary}}_<log>.csv")
+    else:
+        if not any(accumulated[name]["summary_rows"] for name in selected_models):
+            print("Error: no datasets processed successfully")
+            raise SystemExit(1)
+        print(f"\nAll statistical-test outputs saved to: {analysis_dir}")
+        for name in selected_models:
+            print(f"  {analysis_dir / name}/{{gof,comparison,summary}}.csv")
 
 
 if __name__ == "__main__":

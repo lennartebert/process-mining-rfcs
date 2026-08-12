@@ -32,3 +32,34 @@ Step 04 defaults to `lower_bounded_power_law` (`--power-law-model` to change).
 
 `--test` writes attachments to `results/test/attachments/` and describe/Clauset/compose
 to `results/test/n_grams/` (including `log_info.csv` / `.tex`).
+
+## Parallel mode (Slurm)
+
+`--parallel` requires **exactly one** dataset. It writes per-log CSV shards (no LaTeX);
+attachments and plots stay on their existing per-log paths.
+
+| Writer | Shard | After combine |
+|--------|-------|---------------|
+| describe | `log_info_<LOG>.csv` | `log_info.csv` + `.tex` |
+| Clauset | `<concept>/<model>/{gof,comparison,summary}_<LOG>.csv` | unsuffixed CSVs |
+| compose | `variant_power_law_<LOG>.csv`, `log_n_fitted_types_<LOG>.csv`, `log_n_scaling_<LOG>.csv` | unsuffixed + `.tex` (scaling) |
+
+```bash
+# One log (local or Slurm array task)
+python analyses/n_grams/main.py --datasets BPIC12 --parallel
+
+# Smoke test in parallel mode
+python analyses/n_grams/main.py --test --parallel
+
+# After all shards exist, merge + write LaTeX
+python analyses/n_grams/05_combine_parallel.py --output-dir results/n_grams
+```
+
+Slurm (from repo root):
+
+```bash
+mkdir -p .slurm/logs
+sbatch .slurm/n_grams_parallel_array.sh   # one task per log
+# ... wait until array finishes ...
+sbatch .slurm/n_grams_combine.sh          # manual combine job
+```

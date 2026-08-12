@@ -28,6 +28,7 @@ results/
   n_grams/log_info.csv|.tex                        # n-grams pipeline log info
   n_grams/<concept>/<model>/…                      # Clauset CSVs
   n_grams/variant_power_law.csv|.tex
+  n_grams/log_n_fitted_types.csv
   n_grams/log_n_scaling.csv|.tex
   n_grams/plots/<log>/…
   preferential_attachment/…

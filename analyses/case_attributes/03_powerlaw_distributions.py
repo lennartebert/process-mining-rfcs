@@ -43,6 +43,7 @@ from utils.rfc.powerlaw_pipeline import (
     empty_powerlaw_results,
 )
 from utils.rfc.statistical_tests import (
+    DEFAULT_MINIMUM_FITTED_TYPES,
     DISTRIBUTION_NAMES,
     DOUBLY_BOUNDED_POWER_LAW,
 )
@@ -95,7 +96,11 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--n-bootstraps", type=int, default=1000)
     parser.add_argument("--random-seed", type=int, default=42)
-    parser.add_argument("--minimum-fitted-variants", type=int, default=50)
+    parser.add_argument(
+        "--minimum-fitted-types",
+        type=int,
+        default=DEFAULT_MINIMUM_FITTED_TYPES,
+    )
     parser.add_argument("--significance-level", type=float, default=0.10)
     return parser.parse_args(argv)
 
@@ -109,7 +114,7 @@ def analyze_one_attribute(
     source_log_path: str,
     n_bootstraps: int,
     random_seed: int,
-    minimum_fitted_variants: int,
+    minimum_fitted_types: int,
     significance_level: float,
 ) -> dict[str, dict[str, Any]]:
     """Run shared Clauset stack for one included attribute."""
@@ -134,7 +139,7 @@ def analyze_one_attribute(
             discrete=discrete,
             n_bootstraps=n_bootstraps,
             random_seed=random_seed,
-            minimum_fitted_variants=minimum_fitted_variants,
+            minimum_fitted_types=minimum_fitted_types,
             significance_level=significance_level,
         )
 
@@ -159,7 +164,7 @@ def analyze_one_attribute(
         discrete=discrete,
         n_bootstraps=n_bootstraps,
         random_seed=random_seed,
-        minimum_fitted_variants=minimum_fitted_variants,
+        minimum_fitted_types=minimum_fitted_types,
         significance_level=significance_level,
     )
 
@@ -233,7 +238,7 @@ def main(argv: List[str] | None = None) -> None:
                     source_log_path=str(log_path),
                     n_bootstraps=args.n_bootstraps,
                     random_seed=args.random_seed,
-                    minimum_fitted_variants=args.minimum_fitted_variants,
+                    minimum_fitted_types=args.minimum_fitted_types,
                     significance_level=args.significance_level,
                 )
             except (TransformError, Exception) as exc:  # noqa: BLE001

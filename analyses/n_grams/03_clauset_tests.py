@@ -73,6 +73,11 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         default=42,
         help="Random seed for bootstrap resampling (default: 42)",
     )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help="Forward --parallel to clauset_power_law (per-log CSV shards)",
+    )
     return parser.parse_args(argv)
 
 
@@ -110,6 +115,8 @@ def main(argv: List[str] | None = None) -> None:
             "--models",
             *models,
         ]
+        if args.parallel:
+            forward.append("--parallel")
         print(f"$ python cli/clauset_power_law.py {' '.join(forward)}")
         clauset_power_law.main(forward)
 

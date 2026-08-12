@@ -4,6 +4,9 @@ Runs numbered steps 01 -> 02 -> 03 by default. Use --only / --from / --to to
 select a subset. Each step script remains runnable on its own.
 
 ``--test`` runs TEST_BPIC12 with concepts variants, n1, n2 and fewer bootstraps.
+
+``--parallel`` writes per-log CSV shards (no LaTeX) for Slurm array jobs; requires
+exactly one dataset. Combine shards later with ``05_combine_parallel.py``.
 """
 
 from __future__ import annotations
@@ -83,6 +86,9 @@ def _argv_for_step(
     datasets: List[str],
     concepts: List[str],
     test_mode: bool,
+    parallel: bool,
+    n_bootstraps: int | None,
+    random_seed: int | None,
     passthrough: List[str],
 ) -> List[str]:
     """Build argv for one step (01 does not accept concepts/bootstraps)."""
@@ -93,19 +99,27 @@ def _argv_for_step(
         argv.extend(["--concepts", *concepts])
     if test_mode and step_id == "02":
         argv.extend(["--output-dir", str(TEST_ATTACHMENTS_DIR)])
-    if test_mode and step_id == "03":
-        argv.extend(
-            [
-                "--attachments-dir",
-                str(TEST_ATTACHMENTS_DIR),
-                "--output-dir",
-                str(TEST_N_GRAMS_DIR),
-                "--n-bootstraps",
-                str(TEST_N_BOOTSTRAPS),
-            ]
-        )
+    if step_id == "03":
+        if test_mode:
+            argv.extend(
+                [
+                    "--attachments-dir",
+                    str(TEST_ATTACHMENTS_DIR),
+                    "--output-dir",
+                    str(TEST_N_GRAMS_DIR),
+                    "--n-bootstraps",
+                    str(TEST_N_BOOTSTRAPS if n_bootstraps is None else n_bootstraps),
+                ]
+            )
+        elif n_bootstraps is not None:
+            argv.extend(["--n-bootstraps", str(n_bootstraps)])
+        if random_seed is not None:
+            argv.extend(["--random-seed", str(random_seed)])
     if test_mode and step_id == "04":
         argv.extend(["--output-dir", str(TEST_N_GRAMS_DIR)])
+    # Step 02 attachments are already per-log; no --parallel needed there.
+    if parallel and step_id in {"01", "03", "04"}:
+        argv.append("--parallel")
     argv.extend(passthrough)
     return argv
 
@@ -160,6 +174,26 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         help="Comma-separated step ids to run (e.g. 01,03)",
     )
     parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help=(
+            "Per-log CSV shards (no LaTeX) for Slurm array jobs. "
+            "Requires exactly one dataset. Combine later with 05_combine_parallel.py."
+        ),
+    )
+    parser.add_argument(
+        "--n-bootstraps",
+        type=int,
+        default=None,
+        help="Bootstrap iterations for step 03 (overrides --test default when set)",
+    )
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=None,
+        help="Random seed for step 03 bootstrap resampling",
+    )
+    parser.add_argument(
         "--passthrough",
         nargs=argparse.REMAINDER,
         default=[],
@@ -171,6 +205,11 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
 def main(argv: List[str] | None = None) -> None:
     args = parse_args(argv)
     datasets = [TEST_DATASET] if args.test else _resolve_datasets(args.datasets)
+    if args.parallel and len(datasets) != 1:
+        raise SystemExit(
+            "Error: --parallel requires exactly one dataset "
+            f"(got {len(datasets)}: {datasets})."
+        )
     if args.concepts is not None:
         concepts = list(args.concepts)
     elif args.test:
@@ -186,6 +225,9 @@ def main(argv: List[str] | None = None) -> None:
             datasets=datasets,
             concepts=concepts,
             test_mode=args.test,
+            parallel=args.parallel,
+            n_bootstraps=args.n_bootstraps,
+            random_seed=args.random_seed,
             passthrough=args.passthrough,
         )
         print(f"$ python analyses/n_grams/{filename} {' '.join(step_argv)}")

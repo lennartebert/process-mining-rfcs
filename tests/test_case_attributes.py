@@ -278,7 +278,7 @@ class PipelineSmokeTests(unittest.TestCase):
             discrete=True,
             n_bootstraps=2,
             random_seed=0,
-            minimum_fitted_variants=10,
+            minimum_fitted_types=10,
             significance_level=0.10,
         )
         self.assertIn("full_range_power_law", results)
@@ -294,7 +294,7 @@ class PipelineSmokeTests(unittest.TestCase):
             discrete=False,
             n_bootstraps=2,
             random_seed=0,
-            minimum_fitted_variants=10,
+            minimum_fitted_types=10,
             significance_level=0.10,
         )
         self.assertIn("full_range_power_law", results)

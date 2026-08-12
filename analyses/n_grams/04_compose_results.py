@@ -5,7 +5,8 @@ and writes tables/plots at that same root (default: ``results/n_grams/``):
 
 - variant power-law table (CSV + LaTeX)
 - per-log RFC / PDF / CCDF plots for variants
-- log x n scaling matrix (CSV + LaTeX with legend)
+- log x n fitted-types matrix (CSV)
+- log x n scaling matrix (CSV + LaTeX with legend; gray cells when fitted types < 30)
 """
 
 from __future__ import annotations
@@ -30,12 +31,13 @@ from utils.rfc import (
     DOUBLY_BOUNDED_POWER_LAW,
     LOWER_BOUNDED_POWER_LAW,
 )
+from utils.rfc.statistical_tests import DEFAULT_MINIMUM_FITTED_TYPES
 
 VARIANT_TABLE_COLUMNS = [
     "Log",
     "alpha",
     "x_min",
-    "fitted variants",
+    "fitted types",
     "GOF p",
     "best alternative",
     "LLR",
@@ -47,11 +49,14 @@ DEFAULT_CONCEPTS = [*NGRAM_CONCEPTS, "variants"]
 CONCEPT_CHOICES = ["variants", "activities", "dfrs", *NGRAM_CONCEPTS]
 
 SCALING_LEGEND = (
-    "? = insufficient evidence / unresolved; "
+    "? = missing data / error; "
     "Rejected = PL rejected; "
     "Other better = PL plausible but other significantly better; "
     "PL plausible = PL plausible but other cannot be rejected; "
     "PL best = PL plausible and significantly better than others"
+)
+SCALING_GRAY_FOOTNOTE = (
+    f"Gray cells: fewer than {DEFAULT_MINIMUM_FITTED_TYPES} fitted types"
 )
 
 
@@ -109,18 +114,46 @@ def _optional_float(value: object) -> float | None:
     return number
 
 
+def _optional_int(value: object) -> int | None:
+    try:
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return None
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _read_csv_if_exists(path: Path) -> pd.DataFrame | None:
     if not path.exists():
         return None
     return pd.read_csv(path)
 
 
-def _summary_path(tests_root: Path, concept: str, model: str) -> Path:
-    return tests_root / concept / model / "summary.csv"
+def _summary_path(
+    tests_root: Path,
+    concept: str,
+    model: str,
+    *,
+    log_suffix: str | None = None,
+) -> Path:
+    stem = f"summary_{log_suffix}" if log_suffix else "summary"
+    return tests_root / concept / model / f"{stem}.csv"
 
 
-def _comparison_path(tests_root: Path, concept: str, model: str) -> Path:
-    return tests_root / concept / model / "comparison.csv"
+def _comparison_path(
+    tests_root: Path,
+    concept: str,
+    model: str,
+    *,
+    log_suffix: str | None = None,
+) -> Path:
+    stem = f"comparison_{log_suffix}" if log_suffix else "comparison"
+    return tests_root / concept / model / f"{stem}.csv"
 
 
 def _best_alternative_llr_p(
@@ -153,10 +186,15 @@ def build_variant_power_law_table(
     *,
     model: str,
     datasets: Sequence[str] | None = None,
+    log_suffix: str | None = None,
 ) -> pd.DataFrame:
     """Build the trace-variant power-law summary table."""
-    summary = _read_csv_if_exists(_summary_path(tests_root, "variants", model))
-    comparison = _read_csv_if_exists(_comparison_path(tests_root, "variants", model))
+    summary = _read_csv_if_exists(
+        _summary_path(tests_root, "variants", model, log_suffix=log_suffix)
+    )
+    comparison = _read_csv_if_exists(
+        _comparison_path(tests_root, "variants", model, log_suffix=log_suffix)
+    )
     if summary is None or summary.empty:
         return pd.DataFrame(columns=VARIANT_TABLE_COLUMNS)
 
@@ -181,7 +219,7 @@ def build_variant_power_law_table(
                 "Log": log_name,
                 "alpha": src.get("alpha"),
                 "x_min": src.get("xmin"),
-                "fitted variants": src.get("n_fitted_variants"),
+                "fitted types": src.get("n_fitted_types"),
                 "GOF p": src.get("gof_p"),
                 "best alternative": best_other_str if best_other_str else pd.NA,
                 "LLR": llr if llr is not None else pd.NA,
@@ -201,10 +239,10 @@ def classification_to_scaling_cell(classification: object) -> str:
         return "?"
     lowered = text.lower()
     if (
-        "insufficient" in lowered
-        or "invalid" in lowered
+        "invalid" in lowered
         or "gof unavailable" in lowered
         or "unresolved" in lowered
+        or "error" in lowered
     ):
         return "?"
     if "not plausible" in lowered:
@@ -220,29 +258,50 @@ def classification_to_scaling_cell(classification: object) -> str:
     return "?"
 
 
-def build_log_n_scaling_table(
+def _load_concept_summaries(
     tests_root: Path,
     *,
     model: str,
-    datasets: Sequence[str] | None = None,
-    concepts: Sequence[str] | None = None,
-) -> pd.DataFrame:
-    """Build log x n scaling matrix with compact cell labels."""
-    selected = list(concepts) if concepts is not None else list(DEFAULT_CONCEPTS)
-    scaling_columns = scaling_columns_for_concepts(selected)
+    datasets: Sequence[str] | None,
+    concepts: Sequence[str],
+    log_suffix: str | None,
+) -> tuple[list[str], dict[str, pd.DataFrame], list[str]]:
+    """Load per-concept summaries keyed by scaling column name."""
+    scaling_columns = scaling_columns_for_concepts(concepts)
     per_concept: dict[str, pd.DataFrame] = {}
     logs: set[str] = set()
     for column in scaling_columns:
         concept = concept_for_scaling_column(column)
-        summary = _read_csv_if_exists(_summary_path(tests_root, concept, model))
+        summary = _read_csv_if_exists(
+            _summary_path(tests_root, concept, model, log_suffix=log_suffix)
+        )
         if summary is None or summary.empty:
             continue
         if datasets is not None:
             summary = summary.loc[summary["log_name"].astype(str).isin(datasets)]
         per_concept[column] = summary.set_index(summary["log_name"].astype(str))
         logs.update(per_concept[column].index.astype(str).tolist())
-
     ordered_logs = sorted(logs) if datasets is None else [d for d in datasets if d in logs]
+    return ordered_logs, per_concept, scaling_columns
+
+
+def build_log_n_scaling_table(
+    tests_root: Path,
+    *,
+    model: str,
+    datasets: Sequence[str] | None = None,
+    concepts: Sequence[str] | None = None,
+    log_suffix: str | None = None,
+) -> pd.DataFrame:
+    """Build log x n scaling matrix with compact cell labels."""
+    selected = list(concepts) if concepts is not None else list(DEFAULT_CONCEPTS)
+    ordered_logs, per_concept, scaling_columns = _load_concept_summaries(
+        tests_root,
+        model=model,
+        datasets=datasets,
+        concepts=selected,
+        log_suffix=log_suffix,
+    )
     rows: list[dict[str, str]] = []
     for log_name in ordered_logs:
         row: dict[str, str] = {"Log": log_name}
@@ -259,6 +318,40 @@ def build_log_n_scaling_table(
     return pd.DataFrame(rows, columns=["Log", *scaling_columns])
 
 
+def build_log_n_fitted_types_table(
+    tests_root: Path,
+    *,
+    model: str,
+    datasets: Sequence[str] | None = None,
+    concepts: Sequence[str] | None = None,
+    log_suffix: str | None = None,
+) -> pd.DataFrame:
+    """Build log x n matrix of fitted-type counts (or ``?`` if missing)."""
+    selected = list(concepts) if concepts is not None else list(DEFAULT_CONCEPTS)
+    ordered_logs, per_concept, scaling_columns = _load_concept_summaries(
+        tests_root,
+        model=model,
+        datasets=datasets,
+        concepts=selected,
+        log_suffix=log_suffix,
+    )
+    rows: list[dict[str, str]] = []
+    for log_name in ordered_logs:
+        row: dict[str, str] = {"Log": log_name}
+        for column in scaling_columns:
+            summary = per_concept.get(column)
+            if summary is None or log_name not in summary.index:
+                row[column] = "?"
+                continue
+            value = summary.loc[log_name, "n_fitted_types"]
+            if isinstance(value, pd.Series):
+                value = value.iloc[0]
+            n_fitted = _optional_int(value)
+            row[column] = "?" if n_fitted is None else str(n_fitted)
+        rows.append(row)
+    return pd.DataFrame(rows, columns=["Log", *scaling_columns])
+
+
 def _dataframe_to_latex_escaped(df: pd.DataFrame) -> str:
     """Render a DataFrame as LaTeX with escaped cell text."""
     escaped = df.copy()
@@ -268,17 +361,57 @@ def _dataframe_to_latex_escaped(df: pd.DataFrame) -> str:
     return escaped.to_latex(index=False, escape=False)
 
 
-def write_table_csv_and_tex(
+def _gray_latex_cell(text: str) -> str:
+    return f"\\textcolor{{gray}}{{{text}}}"
+
+
+def scaling_dataframe_to_latex(
+    scaling_df: pd.DataFrame,
+    fitted_types_df: pd.DataFrame,
+    *,
+    minimum_fitted_types: int = DEFAULT_MINIMUM_FITTED_TYPES,
+) -> str:
+    """Render scaling matrix LaTeX, graying cells with fitted types below threshold."""
+    fitted_indexed = (
+        fitted_types_df.set_index("Log")
+        if "Log" in fitted_types_df.columns
+        else fitted_types_df
+    )
+    escaped = scaling_df.copy()
+    value_cols = [c for c in escaped.columns if c != "Log"]
+    for idx, row in escaped.iterrows():
+        log_name = str(row["Log"])
+        escaped.at[idx, "Log"] = escape_latex(log_name)
+        for col in value_cols:
+            cell = escape_latex(row[col])
+            n_fitted = None
+            if log_name in fitted_indexed.index and col in fitted_indexed.columns:
+                n_fitted = _optional_int(fitted_indexed.loc[log_name, col])
+            if n_fitted is not None and n_fitted < minimum_fitted_types:
+                cell = _gray_latex_cell(cell)
+            escaped.at[idx, col] = cell
+    return escaped.to_latex(index=False, escape=False)
+
+
+def write_table_csv(df: pd.DataFrame, csv_path: Path) -> None:
+    """Write a DataFrame to CSV."""
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(csv_path, index=False)
+    print(f"Saved: {csv_path}")
+
+
+def write_table_tex(
     df: pd.DataFrame,
-    csv_path: Path,
     tex_path: Path,
     *,
     caption: str | None = None,
     legend: str | None = None,
+    latex_body: str | None = None,
+    footnote: str | None = None,
 ) -> None:
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(csv_path, index=False)
-    latex = _dataframe_to_latex_escaped(df)
+    """Write a DataFrame (or pre-rendered body) as escaped LaTeX."""
+    tex_path.parent.mkdir(parents=True, exist_ok=True)
+    latex = latex_body if latex_body is not None else _dataframe_to_latex_escaped(df)
     parts = []
     if caption:
         parts.append(f"% {caption}")
@@ -291,9 +424,68 @@ def write_table_csv_and_tex(
             + escape_latex(legend)
             + "\\end{flushleft}"
         )
+    if footnote:
+        parts.append(f"% {footnote}")
+        parts.append(
+            "\\begin{flushleft}\\footnotesize "
+            + escape_latex(footnote)
+            + "\\end{flushleft}"
+        )
     tex_path.write_text("\n".join(parts) + "\n", encoding="utf-8")
-    print(f"Saved: {csv_path}")
     print(f"Saved: {tex_path}")
+
+
+def write_table_csv_and_tex(
+    df: pd.DataFrame,
+    csv_path: Path,
+    tex_path: Path,
+    *,
+    caption: str | None = None,
+    legend: str | None = None,
+    latex_body: str | None = None,
+    footnote: str | None = None,
+) -> None:
+    write_table_csv(df, csv_path)
+    write_table_tex(
+        df,
+        tex_path,
+        caption=caption,
+        legend=legend,
+        latex_body=latex_body,
+        footnote=footnote,
+    )
+
+
+def write_log_n_scaling_outputs(
+    scaling_df: pd.DataFrame,
+    fitted_types_df: pd.DataFrame,
+    *,
+    compose_dir: Path,
+    parallel: bool,
+    log_suffix: str | None,
+) -> None:
+    """Write fitted-types CSV, then scaling CSV, then (non-parallel) gray LaTeX."""
+    if parallel:
+        write_table_csv(
+            fitted_types_df,
+            compose_dir / f"log_n_fitted_types_{log_suffix}.csv",
+        )
+        write_table_csv(
+            scaling_df,
+            compose_dir / f"log_n_scaling_{log_suffix}.csv",
+        )
+        return
+
+    write_table_csv(fitted_types_df, compose_dir / "log_n_fitted_types.csv")
+    write_table_csv_and_tex(
+        scaling_df,
+        compose_dir / "log_n_scaling.csv",
+        compose_dir / "log_n_scaling.tex",
+        caption="Log x n power-law scaling",
+        legend=SCALING_LEGEND,
+        latex_body=scaling_dataframe_to_latex(scaling_df, fitted_types_df),
+        footnote=SCALING_GRAY_FOOTNOTE,
+    )
 
 
 def write_variant_plots(
@@ -302,8 +494,11 @@ def write_variant_plots(
     *,
     model: str,
     datasets: Sequence[str] | None = None,
+    log_suffix: str | None = None,
 ) -> None:
-    summary = _read_csv_if_exists(_summary_path(tests_root, "variants", model))
+    summary = _read_csv_if_exists(
+        _summary_path(tests_root, "variants", model, log_suffix=log_suffix)
+    )
     if summary is None or summary.empty:
         print("Warning: no variants summary found; skipping plots.")
         return
@@ -365,8 +560,6 @@ if fit is not None:
     )
 print("plots-ok")
 """
-        import subprocess
-
         completed = subprocess.run(
             [sys.executable, "-c", script],
             capture_output=True,
@@ -418,6 +611,14 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         choices=list(DISTRIBUTION_NAMES),
         help="Power-law family folder under <concept>/",
     )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help=(
+            "Read Clauset shards and write per-log compose CSVs (no LaTeX). "
+            "Requires exactly one --datasets value."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -431,35 +632,69 @@ def main(argv: List[str] | None = None) -> None:
     datasets = list(args.datasets) if args.datasets else None
     concepts = list(args.concepts)
 
+    if args.parallel:
+        if datasets is None or len(datasets) != 1:
+            raise SystemExit(
+                "Error: --parallel requires exactly one --datasets value "
+                f"(got {datasets!r})."
+            )
+        log_suffix = datasets[0]
+    else:
+        log_suffix = None
+
     print(f"Composing from: {tests_root} (model={model}, concepts={concepts})")
+    if args.parallel:
+        print(f"Parallel mode: shards for log={log_suffix}")
+
     if "variants" in concepts:
         variant_df = build_variant_power_law_table(
-            tests_root, model=model, datasets=datasets
+            tests_root,
+            model=model,
+            datasets=datasets,
+            log_suffix=log_suffix,
         )
-        write_table_csv_and_tex(
-            variant_df,
-            compose_dir / "variant_power_law.csv",
-            compose_dir / "variant_power_law.tex",
-            caption="Trace variant power-law results",
-        )
+        if args.parallel:
+            write_table_csv(
+                variant_df,
+                compose_dir / f"variant_power_law_{log_suffix}.csv",
+            )
+        else:
+            write_table_csv_and_tex(
+                variant_df,
+                compose_dir / "variant_power_law.csv",
+                compose_dir / "variant_power_law.tex",
+                caption="Trace variant power-law results",
+            )
         write_variant_plots(
             tests_root,
             compose_dir / "plots",
             model=model,
             datasets=datasets,
+            log_suffix=log_suffix,
         )
     else:
         print("Skipping variant table/plots (variants not in --concepts)")
 
-    scaling_df = build_log_n_scaling_table(
-        tests_root, model=model, datasets=datasets, concepts=concepts
+    fitted_types_df = build_log_n_fitted_types_table(
+        tests_root,
+        model=model,
+        datasets=datasets,
+        concepts=concepts,
+        log_suffix=log_suffix,
     )
-    write_table_csv_and_tex(
+    scaling_df = build_log_n_scaling_table(
+        tests_root,
+        model=model,
+        datasets=datasets,
+        concepts=concepts,
+        log_suffix=log_suffix,
+    )
+    write_log_n_scaling_outputs(
         scaling_df,
-        compose_dir / "log_n_scaling.csv",
-        compose_dir / "log_n_scaling.tex",
-        caption="Log x n power-law scaling",
-        legend=SCALING_LEGEND,
+        fitted_types_df,
+        compose_dir=compose_dir,
+        parallel=args.parallel,
+        log_suffix=log_suffix,
     )
     print(f"Compose outputs written under: {compose_dir}")
 

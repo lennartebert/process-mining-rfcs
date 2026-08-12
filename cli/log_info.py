@@ -227,6 +227,14 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Ignore cached CSV rows and recompute all metrics from event logs",
     )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help=(
+            "Write log_info_<dataset>.csv only (no LaTeX). "
+            "Requires exactly one dataset."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -236,11 +244,23 @@ def main(argv: List[str] | None = None) -> None:
     stats: List[str] = list(args.stats)
     columns = _output_columns(stats)
 
+    if args.parallel and len(args.datasets) != 1:
+        print(
+            "Error: --parallel requires exactly one dataset "
+            f"(got {len(args.datasets)}: {args.datasets})."
+        )
+        sys.exit(1)
+
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    csv_path = output_dir / "log_info.csv"
-    tex_path = output_dir / "log_info.tex"
+    if args.parallel:
+        log_name = args.datasets[0]
+        csv_path = output_dir / f"log_info_{log_name}.csv"
+        tex_path = None
+    else:
+        csv_path = output_dir / "log_info.csv"
+        tex_path = output_dir / "log_info.tex"
 
     cached_by_log = {} if args.force_recalculate else _load_csv_by_log(csv_path)
 
@@ -291,7 +311,9 @@ def main(argv: List[str] | None = None) -> None:
     )
     # Ensure a final CSV write even when everything came from cache.
     details_df.to_csv(csv_path, index=False)
-    _write_latex_from_csv(details_df, tex_path, stats)
+    print(f"Saved: {csv_path}")
+    if tex_path is not None:
+        _write_latex_from_csv(details_df, tex_path, stats)
 
 
 if __name__ == "__main__":

@@ -36,13 +36,14 @@ EXTERNAL_ALTERNATIVES: list[tuple[str, bool]] = [
 EXCLUDED_HEAD_VARIANTS: tuple[int, ...] = (0, 1, 2, 3, 5, 10)
 
 DEFAULT_SIGNIFICANCE_LEVEL = 0.10
-DEFAULT_MINIMUM_FITTED_VARIANTS = 50
+DEFAULT_MINIMUM_FITTED_TYPES = 30
 DEFAULT_MINIMUM_ORDERS_OF_MAGNITUDE = 1.0
+
+GOF_KIND_REFIT_ALL_PARAMETERS = "refit_all_parameters"
+GOF_KIND_SKIPPED_INVALID_FIT = "skipped_invalid_fit"
 
 _ALPHA_UPPER_BOUND = 4.0
 _ALPHA_BOUNDARY_TOL = 1e-6
-_PATHOLOGICAL_KS_D = 0.5
-
 # Package default is [0, 3]; raise the upper bound so discrete full-range MLE
 # is not pinned at alpha=3 (which makes pdf()/ccdf() return ~1e-307 sentinels).
 ALPHA_PARAMETER_RANGE: list[float] = [0.0, 4.0]
@@ -165,23 +166,23 @@ def to_observation_array(
 def descriptive_frequency_stats(frequencies: np.ndarray) -> pd.DataFrame:
     """Return a one-row dataframe of basic frequency-distribution statistics."""
     frequencies = np.asarray(frequencies, dtype=int)
-    n_cases = int(frequencies.sum())
-    n_variants = int(frequencies.size)
+    n_occurrences = int(frequencies.sum())
+    n_types = int(frequencies.size)
     n_singletons = int(np.sum(frequencies == 1))
     n_at_most_five = int(np.sum(frequencies <= 5))
     return pd.DataFrame(
         [
             {
-                "n_cases": n_cases,
-                "n_variants": n_variants,
+                "n_occurrences": n_occurrences,
+                "n_types": n_types,
                 "min_frequency": int(frequencies.min()),
                 "max_frequency": int(frequencies.max()),
                 "mean_frequency": float(np.mean(frequencies)),
                 "median_frequency": float(np.median(frequencies)),
                 "n_singletons": n_singletons,
-                "singleton_share": n_singletons / n_variants,
+                "singleton_share": n_singletons / n_types,
                 "n_at_most_five": n_at_most_five,
-                "at_most_five_share": n_at_most_five / n_variants,
+                "at_most_five_share": n_at_most_five / n_types,
             }
         ]
     )
@@ -194,8 +195,8 @@ def descriptive_observation_stats(
 ) -> pd.DataFrame:
     """Descriptive stats with schema compatible with ``build_summary_row``.
 
-    Discrete: treat *data* as type frequencies (``n_cases = sum``).
-    Continuous: treat *data* as raw magnitudes (``n_cases = n_obs``).
+    Discrete: treat *data* as type frequencies (``n_occurrences = sum``).
+    Continuous: treat *data* as raw magnitudes (``n_occurrences = n_obs``).
     """
     if discrete:
         return descriptive_frequency_stats(data)
@@ -207,8 +208,8 @@ def descriptive_observation_stats(
     return pd.DataFrame(
         [
             {
-                "n_cases": n_obs,
-                "n_variants": n_obs,
+                "n_occurrences": n_obs,
+                "n_types": n_obs,
                 "min_frequency": float(np.min(values)),
                 "max_frequency": float(np.max(values)),
                 "mean_frequency": float(np.mean(values)),
@@ -253,14 +254,23 @@ def _alpha_at_parameter_boundary(alpha: float) -> bool:
     )
 
 
-def _pathological_fit_diagnostics(alpha: float, ks_d: float) -> list[str]:
+def _pathological_fit_diagnostics(alpha: float) -> list[str]:
     """Return human-readable pathology flags for a fitted power law."""
     flags: list[str] = []
     if _alpha_at_parameter_boundary(alpha):
         flags.append("alpha_at_parameter_boundary")
-    if np.isfinite(ks_d) and float(ks_d) >= _PATHOLOGICAL_KS_D:
-        flags.append("ks_d_pathological")
     return flags
+
+
+def _to_cutoff_int(value: Any) -> int | float:
+    """Cast a finite xmin/xmax cutoff to int; otherwise return NaN."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+    if not np.isfinite(number):
+        return float("nan")
+    return int(number)
 
 
 def _extract_power_law_stats(
@@ -279,33 +289,35 @@ def _extract_power_law_stats(
     log_range = _log_range(xmin, xmax if xmax is not None else float(np.max(data)))
 
     if discrete:
-        n_cases = int(np.asarray(data).sum())
-        n_variants = int(np.asarray(data).size)
+        n_occurrences = int(np.asarray(data).sum())
+        n_types = int(np.asarray(data).size)
     else:
-        n_cases = int(np.asarray(data).size)
-        n_variants = n_cases
-    n_fitted_variants = np.nan
-    fitted_variant_share = np.nan
-    fitted_case_share = np.nan
+        n_occurrences = int(np.asarray(data).size)
+        n_types = n_occurrences
+    n_fitted_types = np.nan
+    fitted_type_share = np.nan
+    fitted_occurrence_share = np.nan
     if np.isfinite(xmin):
         fitted_mask = _fitted_region_mask(data, xmin, xmax)
-        n_fitted_variants = int(np.sum(fitted_mask))
+        n_fitted_types = int(np.sum(fitted_mask))
         if discrete:
-            n_fitted_cases = int(np.asarray(data)[fitted_mask].sum())
+            n_fitted_occurrences = int(np.asarray(data)[fitted_mask].sum())
         else:
-            n_fitted_cases = n_fitted_variants
-        fitted_variant_share = n_fitted_variants / n_variants if n_variants else np.nan
-        fitted_case_share = n_fitted_cases / n_cases if n_cases else np.nan
+            n_fitted_occurrences = n_fitted_types
+        fitted_type_share = n_fitted_types / n_types if n_types else np.nan
+        fitted_occurrence_share = (
+            n_fitted_occurrences / n_occurrences if n_occurrences else np.nan
+        )
 
-    pathology_flags = _pathological_fit_diagnostics(alpha, ks_d)
+    pathology_flags = _pathological_fit_diagnostics(alpha)
     return {
         "alpha": alpha,
         "xmin": xmin,
         "xmax": xmax if xmax is not None else np.nan,
         "KS_D": ks_d,
-        "n_fitted_variants": n_fitted_variants,
-        "fitted_variant_share": fitted_variant_share,
-        "fitted_case_share": fitted_case_share,
+        "n_fitted_types": n_fitted_types,
+        "fitted_type_share": fitted_type_share,
+        "fitted_occurrence_share": fitted_occurrence_share,
         "log_range": log_range,
         "alpha_at_boundary": _alpha_at_parameter_boundary(alpha),
         "pathology_flags": pathology_flags,
@@ -540,6 +552,188 @@ def _failed_gof_result(
     }
 
 
+def _sample_discrete_power_law_lower_bounded(
+    n: int,
+    *,
+    alpha: float,
+    xmin: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Draw ``n`` integers from a discrete power law on ``x >= xmin`` (no upper bound)."""
+    if n <= 0:
+        return np.asarray([], dtype=int)
+    xmin_i = int(np.floor(xmin))
+    dist = powerlaw.Power_Law(
+        xmin=xmin_i,
+        parameters=[float(alpha)],
+        discrete=True,
+    )
+    out: list[int] = []
+    # Approximate sampler is fast; reject any rare draws below xmin (never clip).
+    while len(out) < n:
+        need = n - len(out)
+        batch = np.asarray(
+            dist.generate_random(need, estimate_discrete=False),
+            dtype=float,
+        )
+        batch = np.asarray(np.round(batch), dtype=int)
+        batch = batch[batch >= xmin_i]
+        if batch.size:
+            out.extend(batch.tolist())
+    return np.asarray(out[:n], dtype=int)
+
+
+def _sample_discrete_power_law_truncated(
+    n: int,
+    *,
+    alpha: float,
+    xmin: float,
+    xmax: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Draw ``n`` integers from a discrete PL normalized on ``{xmin,...,xmax}``."""
+    if n <= 0:
+        return np.asarray([], dtype=int)
+    xmin_i = int(np.floor(xmin))
+    xmax_i = int(np.floor(xmax))
+    if xmax_i < xmin_i:
+        raise ValueError(f"xmax ({xmax_i}) < xmin ({xmin_i})")
+    support = np.arange(xmin_i, xmax_i + 1, dtype=int)
+    if support.size == 1:
+        return np.full(n, support[0], dtype=int)
+
+    # Direct categorical sampling on the truncated support (no clipping).
+    # For extremely wide supports fall back to rejection from the lower-bounded PL.
+    max_direct_support = 100_000
+    if support.size <= max_direct_support:
+        log_w = -float(alpha) * np.log(support.astype(float))
+        log_w -= float(np.max(log_w))
+        weights = np.exp(log_w)
+        probs = weights / weights.sum()
+        return rng.choice(support, size=n, replace=True, p=probs).astype(int)
+
+    out: list[int] = []
+    while len(out) < n:
+        need = n - len(out)
+        # Oversample: acceptance rate is the truncated mass under the lower-bounded PL.
+        batch = _sample_discrete_power_law_lower_bounded(
+            max(need * 2, need),
+            alpha=alpha,
+            xmin=xmin_i,
+            rng=rng,
+        )
+        batch = batch[batch <= xmax_i]
+        if batch.size:
+            out.extend(batch.tolist())
+    return np.asarray(out[:n], dtype=int)
+
+
+def _sample_continuous_power_law_lower_bounded(
+    n: int,
+    *,
+    alpha: float,
+    xmin: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Draw ``n`` values from a continuous power law on ``x >= xmin``."""
+    if n <= 0:
+        return np.asarray([], dtype=float)
+    # Inverse CDF: x = xmin * U^(-1/(alpha-1)) for alpha > 1.
+    alpha = float(alpha)
+    xmin = float(xmin)
+    if alpha <= 1.0:
+        # Degenerate / heavy regime: fall back to powerlaw's generator.
+        dist = powerlaw.Power_Law(xmin=xmin, parameters=[alpha], discrete=False)
+        return np.asarray(dist.generate_random(n), dtype=float)
+    u = rng.random(n)
+    return xmin * np.power(u, -1.0 / (alpha - 1.0))
+
+
+def _sample_continuous_power_law_truncated(
+    n: int,
+    *,
+    alpha: float,
+    xmin: float,
+    xmax: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Draw ``n`` values from a continuous PL truncated to ``[xmin, xmax]``."""
+    if n <= 0:
+        return np.asarray([], dtype=float)
+    xmin = float(xmin)
+    xmax = float(xmax)
+    alpha = float(alpha)
+    if xmax < xmin:
+        raise ValueError(f"xmax ({xmax}) < xmin ({xmin})")
+    # Inverse CDF of truncated continuous power law.
+    if alpha == 1.0:
+        # Limit form: uniform in log-space between xmin and xmax.
+        u = rng.random(n)
+        return xmin * np.exp(u * np.log(xmax / xmin))
+    if alpha < 1.0:
+        out: list[float] = []
+        while len(out) < n:
+            need = n - len(out)
+            batch = _sample_continuous_power_law_lower_bounded(
+                max(need * 2, need),
+                alpha=alpha,
+                xmin=xmin,
+                rng=rng,
+            )
+            batch = batch[batch <= xmax]
+            if batch.size:
+                out.extend(batch.tolist())
+        return np.asarray(out[:n], dtype=float)
+    # CDF(x) = 1 - (x/xmin)^(1-alpha); truncate and invert.
+    cmin = xmin ** (1.0 - alpha)
+    cmax = xmax ** (1.0 - alpha)
+    u = rng.random(n)
+    return np.power(cmin - u * (cmin - cmax), 1.0 / (1.0 - alpha))
+
+
+def _sample_fitted_power_law(
+    n: int,
+    *,
+    alpha: float,
+    xmin: float,
+    xmax: float | None,
+    rng: np.random.Generator,
+    discrete: bool,
+) -> np.ndarray:
+    """Sample from the fitted PL on its proper support (no clipping)."""
+    if xmax is not None and np.isfinite(xmax):
+        if discrete:
+            return _sample_discrete_power_law_truncated(
+                n, alpha=alpha, xmin=xmin, xmax=xmax, rng=rng
+            )
+        return _sample_continuous_power_law_truncated(
+            n, alpha=alpha, xmin=xmin, xmax=xmax, rng=rng
+        )
+    if discrete:
+        return _sample_discrete_power_law_lower_bounded(
+            n, alpha=alpha, xmin=xmin, rng=rng
+        )
+    return _sample_continuous_power_law_lower_bounded(
+        n, alpha=alpha, xmin=xmin, rng=rng
+    )
+
+
+def _resample_empirical(
+    values: np.ndarray,
+    n: int,
+    *,
+    rng: np.random.Generator,
+    discrete: bool,
+) -> np.ndarray:
+    """Resample ``n`` observations from an empirical region (with replacement)."""
+    if n <= 0:
+        return np.asarray([], dtype=int if discrete else float)
+    if values.size == 0:
+        raise ValueError("cannot resample from an empty empirical region")
+    drawn = rng.choice(values, size=n, replace=True)
+    return drawn.astype(int if discrete else float, copy=False)
+
+
 def _simulate_semiparametric_sample(
     *,
     data: np.ndarray,
@@ -549,37 +743,87 @@ def _simulate_semiparametric_sample(
     rng: np.random.Generator,
     discrete: bool = True,
 ) -> np.ndarray:
-    """Build one semiparametric synthetic sample (body resample + PL tail)."""
-    in_tail = data >= empirical_xmin
-    if np.isfinite(empirical_xmax):
-        in_tail &= data <= empirical_xmax
-    body = data[~in_tail]
-    n_tail = int(np.sum(in_tail))
-    n_body = int(body.size)
+    """Build one Clauset semiparametric synthetic sample of size ``K=len(data)``.
 
-    synthetic_tail = empirical_model.generate_random(
-        n_tail, estimate_discrete=bool(discrete)
-    )
-    synthetic_tail = np.asarray(synthetic_tail, dtype=float)
+    The empirically fitted model (alpha, xmin, and xmax if present) is the fixed
+    null. Each of the ``K`` synthetic observations is drawn independently from a
+    mixture over empirical regions, so region counts vary across replicates while
+    the total sample size stays fixed. Fitted-range values are sampled from the
+    correctly normalized (truncated) power law — never by clipping unbounded draws.
+    """
+    data = np.asarray(data)
     if discrete:
-        synthetic_tail = np.asarray(np.round(synthetic_tail), dtype=int)
-        synthetic_tail = np.maximum(synthetic_tail, int(np.floor(empirical_xmin)))
-        if np.isfinite(empirical_xmax):
-            synthetic_tail = np.minimum(synthetic_tail, int(np.floor(empirical_xmax)))
+        data = np.asarray(data, dtype=int)
     else:
-        synthetic_tail = np.maximum(synthetic_tail, float(empirical_xmin))
-        if np.isfinite(empirical_xmax):
-            synthetic_tail = np.minimum(synthetic_tail, float(empirical_xmax))
+        data = np.asarray(data, dtype=float)
 
-    if n_body > 0:
-        synthetic_body = rng.choice(body, size=n_body, replace=True)
-        if discrete:
-            synthetic_body = synthetic_body.astype(int)
-        return np.concatenate([synthetic_body, synthetic_tail])
-    return synthetic_tail
+    k_total = int(data.size)
+    if k_total == 0:
+        return data.copy()
+
+    alpha = float(getattr(empirical_model, "alpha"))
+    xmin = float(empirical_xmin)
+    has_xmax = bool(np.isfinite(empirical_xmax))
+    xmax = float(empirical_xmax) if has_xmax else None
+
+    if has_xmax:
+        assert xmax is not None
+        below = data[data < xmin]
+        mid = data[(data >= xmin) & (data <= xmax)]
+        above = data[data > xmax]
+        shares = np.asarray(
+            [below.size, mid.size, above.size], dtype=float
+        ) / float(k_total)
+        n_below, n_mid, n_above = (int(x) for x in rng.multinomial(k_total, shares))
+        parts: list[np.ndarray] = []
+        if n_below:
+            parts.append(
+                _resample_empirical(below, n_below, rng=rng, discrete=discrete)
+            )
+        if n_mid:
+            parts.append(
+                _sample_fitted_power_law(
+                    n_mid,
+                    alpha=alpha,
+                    xmin=xmin,
+                    xmax=xmax,
+                    rng=rng,
+                    discrete=discrete,
+                )
+            )
+        if n_above:
+            parts.append(
+                _resample_empirical(above, n_above, rng=rng, discrete=discrete)
+            )
+        if not parts:
+            return data[:0].copy()
+        return np.concatenate(parts)
+
+    below = data[data < xmin]
+    n_fit = int(np.sum(data >= xmin))
+    p_fit = n_fit / float(k_total)
+    n_tail = int(rng.binomial(k_total, p_fit))
+    n_body = k_total - n_tail
+    parts = []
+    if n_body:
+        parts.append(_resample_empirical(below, n_body, rng=rng, discrete=discrete))
+    if n_tail:
+        parts.append(
+            _sample_fitted_power_law(
+                n_tail,
+                alpha=alpha,
+                xmin=xmin,
+                xmax=None,
+                rng=rng,
+                discrete=discrete,
+            )
+        )
+    if not parts:
+        return data[:0].copy()
+    return np.concatenate(parts)
 
 
-def clauset_gof_bootstrap_fixed_cutoffs(
+def clauset_gof_bootstrap_refit_all_parameters(
     data: np.ndarray,
     n_bootstraps: int = 1000,
     random_seed: int = 42,
@@ -588,11 +832,13 @@ def clauset_gof_bootstrap_fixed_cutoffs(
     *,
     discrete: bool = True,
 ) -> dict[str, Any]:
-    """Clauset GOF with cutoffs held fixed as in the empirical fit.
+    """Clauset GOF that refits free cutoffs and alpha on each bootstrap sample.
 
-    Diagnostic helper for a single (xmin, xmax) hypothesis. For the official
-    doubly bounded GOF after data-driven xmax selection, use
-    ``clauset_gof_bootstrap_doubly_bounded_selection`` instead.
+    Synthetic samples use the Clauset semiparametric mixture (empirical outside
+    regions + fitted PL on the fitted support) with fixed total size ``K`` and
+    varying region counts. On each replicate, free parameters are re-estimated:
+    ``xmin is None`` / ``xmax is None`` means that cutoff is refit; a provided
+    cutoff is treated as a model constraint.
     """
     data = to_observation_array(data, discrete=discrete)
 
@@ -639,10 +885,9 @@ def clauset_gof_bootstrap_fixed_cutoffs(
             n_bootstraps=n_bootstraps,
         )
 
-    synth_xmin = empirical_xmin if xmin is not None else None
-    synth_xmax = (
-        empirical_xmax if (xmax is not None and np.isfinite(empirical_xmax)) else None
-    )
+    # Model constraints stay fixed; free cutoffs (None) are refit each replicate.
+    synth_xmin = xmin
+    synth_xmax = xmax if (xmax is not None and np.isfinite(float(xmax))) else None
 
     rng = np.random.default_rng(random_seed)
     simulated_distances: list[float] = []
@@ -683,7 +928,7 @@ def clauset_gof_bootstrap_fixed_cutoffs(
         )
 
     n_at_least = int(np.sum(simulated_distances_arr >= empirical_d))
-    p_value = (1 + n_at_least) / (n_success + 1)
+    p_value = n_at_least / n_success
 
     return {
         "xmin": empirical_xmin,
@@ -697,8 +942,8 @@ def clauset_gof_bootstrap_fixed_cutoffs(
     }
 
 
-# Backwards-compatible alias for the fixed-cutoff diagnostic bootstrap.
-clauset_gof_bootstrap = clauset_gof_bootstrap_fixed_cutoffs
+# Public alias used by callers that only need the default GOF path.
+clauset_gof_bootstrap = clauset_gof_bootstrap_refit_all_parameters
 
 
 def select_xmax_by_min_ks(
@@ -709,7 +954,7 @@ def select_xmax_by_min_ks(
     Among discrete head-exclusion candidates with a finite KS distance, choose
     the one with the **smallest** ``KS_D`` (best match of empirical vs fitted
     CDF on that candidate's support). Ties prefer fewer excluded head variants,
-    then more fitted variants.
+    then more fitted types.
     """
     usable: list[Mapping[str, Any]] = []
     for row in candidate_rows:
@@ -727,7 +972,7 @@ def select_xmax_by_min_ks(
     def sort_key(row: Mapping[str, Any]) -> tuple[float, int, int]:
         ks_d = float(row["KS_D"])
         excl_k = int(row.get("excluded_head_variants", 10**9) or 10**9)
-        n_fitted = int(row.get("n_fitted_variants", 0) or 0)
+        n_fitted = int(row.get("n_fitted_types", 0) or 0)
         return (ks_d, excl_k, -n_fitted)
 
     return min(usable, key=sort_key)
@@ -803,9 +1048,9 @@ def _evaluation_from_fit_and_gof(
         "xmin": fit_result["xmin"],
         "xmax": fit_result["xmax"],
         "KS_D": fit_result["KS_D"],
-        "n_fitted_variants": fit_result["n_fitted_variants"],
-        "fitted_variant_share": fit_result["fitted_variant_share"],
-        "fitted_case_share": fit_result["fitted_case_share"],
+        "n_fitted_types": fit_result["n_fitted_types"],
+        "fitted_type_share": fit_result["fitted_type_share"],
+        "fitted_occurrence_share": fit_result["fitted_occurrence_share"],
         "log_range": fit_result["log_range"],
         "alpha_at_boundary": fit_result["alpha_at_boundary"],
         "pathology_flags": fit_result["pathology_flags"],
@@ -831,13 +1076,13 @@ def _evaluation_from_invalid_fit(fit_result: Mapping[str, Any]) -> dict[str, Any
     """Evaluation for a pathological fit: keep diagnostics, suppress findings."""
     return {
         "fit": fit_result["fit"],
-        "alpha": np.nan,
+        "alpha": fit_result["alpha"],
         "xmin": fit_result["xmin"],
         "xmax": fit_result["xmax"],
-        "KS_D": np.nan,
-        "n_fitted_variants": fit_result["n_fitted_variants"],
-        "fitted_variant_share": fit_result["fitted_variant_share"],
-        "fitted_case_share": fit_result["fitted_case_share"],
+        "KS_D": fit_result["KS_D"],
+        "n_fitted_types": fit_result["n_fitted_types"],
+        "fitted_type_share": fit_result["fitted_type_share"],
+        "fitted_occurrence_share": fit_result["fitted_occurrence_share"],
         "log_range": fit_result["log_range"],
         "alpha_at_boundary": fit_result["alpha_at_boundary"],
         "pathology_flags": list(fit_result.get("pathology_flags") or []),
@@ -847,7 +1092,7 @@ def _evaluation_from_invalid_fit(fit_result: Mapping[str, Any]) -> dict[str, Any
         "n_failed": 0,
         "empirical_d": np.nan,
         "simulated_distances": np.asarray([], dtype=float),
-        "gof_kind": "skipped_invalid_fit",
+        "gof_kind": GOF_KIND_SKIPPED_INVALID_FIT,
         **{
             key: fit_result[key]
             for key in (
@@ -869,7 +1114,7 @@ def evaluate_power_law_fit(
     fit_result: Mapping[str, Any] | None = None,
     discrete: bool = True,
 ) -> dict[str, Any]:
-    """Fit a power law and run fixed-cutoff Clauset GOF.
+    """Fit a power law and run Clauset GOF with free-parameter refits.
 
     Shared path for full-range and lower-bounded models. Optionally reuse an
     existing ``fit_result`` from ``fit_power_law``.
@@ -882,7 +1127,7 @@ def evaluate_power_law_fit(
         fit_result = fit_power_law(data, xmin=xmin, xmax=xmax, discrete=discrete)
     if not bool(fit_result.get("fit_valid", True)):
         return _evaluation_from_invalid_fit(fit_result)
-    gof = clauset_gof_bootstrap_fixed_cutoffs(
+    gof = clauset_gof_bootstrap_refit_all_parameters(
         data,
         n_bootstraps=n_bootstraps,
         random_seed=random_seed,
@@ -890,7 +1135,9 @@ def evaluate_power_law_fit(
         xmax=xmax,
         discrete=discrete,
     )
-    return _evaluation_from_fit_and_gof(fit_result, gof, gof_kind="fixed_cutoffs")
+    return _evaluation_from_fit_and_gof(
+        fit_result, gof, gof_kind=GOF_KIND_REFIT_ALL_PARAMETERS
+    )
 
 
 def evaluate_doubly_bounded_power_law(
@@ -926,7 +1173,7 @@ def evaluate_doubly_bounded_power_law(
         discrete=discrete,
     )
     evaluation = _evaluation_from_fit_and_gof(
-        selected_fit, gof, gof_kind="selection_repeating"
+        selected_fit, gof, gof_kind=GOF_KIND_REFIT_ALL_PARAMETERS
     )
     return evaluation, candidate_fits
 
@@ -939,7 +1186,7 @@ def evaluate_doubly_bounded_candidates(
     random_seed: int = 42,
     excluded_head_variants: Sequence[int] = EXCLUDED_HEAD_VARIANTS,
     significance_level: float = DEFAULT_SIGNIFICANCE_LEVEL,
-    minimum_fitted_variants: int = DEFAULT_MINIMUM_FITTED_VARIANTS,
+    minimum_fitted_types: int = DEFAULT_MINIMUM_FITTED_TYPES,
     minimum_orders_of_magnitude: float = DEFAULT_MINIMUM_ORDERS_OF_MAGNITUDE,
     discrete: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, Any] | None, list[dict[str, Any]]]:
@@ -948,7 +1195,7 @@ def evaluate_doubly_bounded_candidates(
     Returns ``(gof_rows, selected_evaluation_or_None, candidate_fits)``.
     ``gof_rows`` contains at most one row (the selected model), like lower-bounded.
     """
-    del significance_level, minimum_fitted_variants, minimum_orders_of_magnitude
+    del significance_level, minimum_fitted_types, minimum_orders_of_magnitude
     selected, candidate_fits = evaluate_doubly_bounded_power_law(
         data,
         n_bootstraps=n_bootstraps,
@@ -963,8 +1210,7 @@ def evaluate_doubly_bounded_candidates(
         evaluation=selected,
         selected=True,
     )
-    gof_rows = [] if gof_row is None else [gof_row]
-    return gof_rows, selected, candidate_fits
+    return [gof_row], selected, candidate_fits
 
 
 def clauset_gof_bootstrap_doubly_bounded_selection(
@@ -975,12 +1221,12 @@ def clauset_gof_bootstrap_doubly_bounded_selection(
     random_seed: int = 42,
     excluded_head_variants: Sequence[int] = EXCLUDED_HEAD_VARIANTS,
     significance_level: float = DEFAULT_SIGNIFICANCE_LEVEL,
-    minimum_fitted_variants: int = DEFAULT_MINIMUM_FITTED_VARIANTS,
+    minimum_fitted_types: int = DEFAULT_MINIMUM_FITTED_TYPES,
     minimum_orders_of_magnitude: float = DEFAULT_MINIMUM_ORDERS_OF_MAGNITUDE,
     discrete: bool = True,
 ) -> dict[str, Any]:
     """GOF that re-runs min-KS xmax selection inside each bootstrap."""
-    del significance_level, minimum_fitted_variants, minimum_orders_of_magnitude
+    del significance_level, minimum_fitted_types, minimum_orders_of_magnitude
 
     data = to_observation_array(data, discrete=discrete)
     fit = selected_evaluation["fit"]
@@ -1050,7 +1296,7 @@ def clauset_gof_bootstrap_doubly_bounded_selection(
         )
 
     n_at_least = int(np.sum(simulated_distances_arr >= empirical_d))
-    p_value = (1 + n_at_least) / (n_success + 1)
+    p_value = n_at_least / n_success
     return {
         "xmin": empirical_xmin,
         "xmax": empirical_xmax,
@@ -1068,29 +1314,33 @@ def gof_row_from_evaluation(
     log_name: str,
     evaluation: Mapping[str, Any],
     selected: bool | None = None,
-) -> dict[str, Any] | None:
+) -> dict[str, Any]:
     """Build one gof.csv row from an evaluation result.
 
-    Returns ``None`` when the fit is invalid so alpha / GOF are not reported.
+    Invalid fits still emit a row with ``gof_kind=skipped_invalid_fit``.
     """
-    if not bool(evaluation.get("fit_valid", True)):
-        return None
+    fit_valid = bool(evaluation.get("fit_valid", True))
+    gof_kind = (
+        GOF_KIND_SKIPPED_INVALID_FIT
+        if not fit_valid
+        else evaluation.get("gof_kind", GOF_KIND_REFIT_ALL_PARAMETERS)
+    )
     row: dict[str, Any] = {
         "log_name": log_name,
-        "xmin": evaluation.get("xmin"),
-        "xmax": evaluation.get("xmax"),
+        "xmin": _to_cutoff_int(evaluation.get("xmin")),
+        "xmax": _to_cutoff_int(evaluation.get("xmax")),
         "alpha": evaluation.get("alpha"),
         "KS_D": evaluation.get("KS_D"),
-        "n_fitted_variants": evaluation.get("n_fitted_variants"),
-        "fitted_variant_share": evaluation.get("fitted_variant_share"),
-        "fitted_case_share": evaluation.get("fitted_case_share"),
+        "n_fitted_types": evaluation.get("n_fitted_types"),
+        "fitted_type_share": evaluation.get("fitted_type_share"),
+        "fitted_occurrence_share": evaluation.get("fitted_occurrence_share"),
         "log_range": evaluation.get("log_range"),
         "gof_p": evaluation.get("gof_p"),
         "n_success": evaluation.get("n_success"),
         "n_failed": evaluation.get("n_failed"),
         "alpha_at_boundary": evaluation.get("alpha_at_boundary"),
-        "fit_valid": evaluation.get("fit_valid"),
-        "gof_kind": evaluation.get("gof_kind"),
+        "fit_valid": fit_valid,
+        "gof_kind": gof_kind,
     }
     if "excluded_head_variants" in evaluation:
         row["excluded_head_variants"] = evaluation["excluded_head_variants"]
@@ -1107,6 +1357,7 @@ def _valid_comparison_frame(comparison_df: pd.DataFrame | None) -> pd.DataFrame:
         return pd.DataFrame(
             columns=[
                 "log_name",
+                "n_fitted_types",
                 "model_1",
                 "model_2",
                 "R",
@@ -1115,12 +1366,9 @@ def _valid_comparison_frame(comparison_df: pd.DataFrame | None) -> pd.DataFrame:
                 "interpretation",
             ]
         )
-    valid = (
-        comparison_df["R"].notna()
-        & comparison_df["p"].notna()
-        & np.isfinite(comparison_df["R"].astype(float))
-        & np.isfinite(comparison_df["p"].astype(float))
-    )
+    r = pd.to_numeric(comparison_df["R"], errors="coerce")
+    p = pd.to_numeric(comparison_df["p"], errors="coerce")
+    valid = r.notna() & p.notna() & np.isfinite(r) & np.isfinite(p)
     return comparison_df.loc[valid].copy()
 
 
@@ -1158,38 +1406,42 @@ def _comparison_preference_label(
 
 
 def classify_power_law_result(
-    n_fitted_variants: int,
+    n_fitted_types: int,
     gof_p: float,
     comparison_df: pd.DataFrame,
     *,
     model_label: str,
-    minimum_fitted_variants: int = DEFAULT_MINIMUM_FITTED_VARIANTS,
+    minimum_fitted_types: int = DEFAULT_MINIMUM_FITTED_TYPES,
     significance_level: float = DEFAULT_SIGNIFICANCE_LEVEL,
     fit_valid: bool = True,
     pathology_flags: Sequence[str] | None = None,
 ) -> str:
-    """Return a two-step classification string for one distribution.
+    """Return a three-step classification string for one distribution.
 
+    Step (1) reports whether the fitted region has enough types.
     Reject when ``gof_p < significance_level``; do not reject when
     ``gof_p >= significance_level``. Pathological fits (e.g. alpha at the
-    package bound, KS near 1) suppress alpha and all downstream findings.
+    package bound) suppress alpha and all downstream findings.
     """
-    if n_fitted_variants < minimum_fitted_variants:
-        return "insufficient fitted observations"
     if not fit_valid:
         flags = ", ".join(pathology_flags or []) or "invalid fit diagnostics"
         return f"{model_label} invalid ({flags}); fit findings suppressed"
+
+    if n_fitted_types >= minimum_fitted_types:
+        fitted_step = f"(1) >= {minimum_fitted_types} fitted types"
+    else:
+        fitted_step = f"(1) < {minimum_fitted_types} fitted types"
 
     preference = _comparison_preference_label(
         comparison_df, significance_level=significance_level
     )
     if not np.isfinite(gof_p):
-        return f"(1) {model_label} GOF unavailable; (2) {preference}"
+        return f"{fitted_step}; (2) {model_label} GOF unavailable; (3) {preference}"
     if gof_p < significance_level:
-        gof_step = f"(1) {model_label} not plausible (p<{significance_level:g})"
+        gof_step = f"(2) {model_label} not plausible (p<{significance_level:g})"
     else:
-        gof_step = f"(1) {model_label} plausible (p>={significance_level:g})"
-    return f"{gof_step}; (2) {preference}"
+        gof_step = f"(2) {model_label} plausible (p>={significance_level:g})"
+    return f"{fitted_step}; {gof_step}; (3) {preference}"
 
 
 def build_summary_row(
@@ -1229,18 +1481,19 @@ def build_summary_row(
     row: dict[str, Any] = {
         "log_name": log_name,
         "input_path": str(input_path),
-        "n_cases": int(stats["n_cases"]),
-        "n_variants": int(stats["n_variants"]),
+        "n_occurrences": int(stats["n_occurrences"]),
+        "n_types": int(stats["n_types"]),
         "n_singletons": int(stats["n_singletons"]),
         "singleton_share": float(stats["singleton_share"]),
         "xmin": _optional_float(evaluation.get("xmin")),
         "xmax": _optional_float(evaluation.get("xmax")),
-        "n_fitted_variants": _optional_int(evaluation.get("n_fitted_variants")),
-        "fitted_variant_share": _optional_float(evaluation.get("fitted_variant_share")),
-        "fitted_case_share": _optional_float(evaluation.get("fitted_case_share")),
+        "n_fitted_types": _optional_int(evaluation.get("n_fitted_types")),
+        "fitted_type_share": _optional_float(evaluation.get("fitted_type_share")),
+        "fitted_occurrence_share": _optional_float(
+            evaluation.get("fitted_occurrence_share")
+        ),
         "log_range": _optional_float(evaluation.get("log_range")),
         "fit_valid": evaluation.get("fit_valid", pd.NA),
-        "alpha_at_boundary": evaluation.get("alpha_at_boundary", pd.NA),
         "classification": classification,
         "best_other_distribution": pd.NA,
     }
@@ -1261,7 +1514,7 @@ def build_summary_row(
         row["gof_p"] = pd.NA
         row["n_success"] = pd.NA
         row["n_failed"] = pd.NA
-        row["gof_kind"] = "skipped_invalid_fit"
+        row["gof_kind"] = GOF_KIND_SKIPPED_INVALID_FIT
     if "excluded_head_variants" in evaluation:
         row["excluded_head_variants"] = _optional_int(
             evaluation.get("excluded_head_variants")
@@ -1284,24 +1537,23 @@ def empty_summary_row(
     row = {
         "log_name": log_name,
         "input_path": str(input_path),
-        "n_cases": pd.NA,
-        "n_variants": pd.NA,
+        "n_occurrences": pd.NA,
+        "n_types": pd.NA,
         "n_singletons": pd.NA,
         "singleton_share": pd.NA,
         "alpha": pd.NA,
         "xmin": pd.NA,
         "xmax": pd.NA,
         "KS_D": pd.NA,
-        "n_fitted_variants": pd.NA,
-        "fitted_variant_share": pd.NA,
-        "fitted_case_share": pd.NA,
+        "n_fitted_types": pd.NA,
+        "fitted_type_share": pd.NA,
+        "fitted_occurrence_share": pd.NA,
         "log_range": pd.NA,
         "gof_p": pd.NA,
         "n_success": pd.NA,
         "n_failed": pd.NA,
         "gof_kind": pd.NA,
         "fit_valid": pd.NA,
-        "alpha_at_boundary": pd.NA,
         "classification": classification,
         "best_other_distribution": pd.NA,
     }
@@ -1316,6 +1568,7 @@ def empty_comparison_frame(log_name: str, model_1: str) -> pd.DataFrame:
     rows = [
         {
             "log_name": log_name,
+            "n_fitted_types": pd.NA,
             "model_1": model_1,
             "model_2": model_2,
             "R": pd.NA,
