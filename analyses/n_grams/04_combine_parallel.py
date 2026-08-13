@@ -1,16 +1,20 @@
-"""Combine per-log parallel CSV shards into aggregate tables (+ LaTeX).
+"""Step 04: combine per-log parallel CSV shards from describe + Clauset.
 
-Reads shards produced by ``main.py --parallel`` under an n-grams results root
-and writes the usual unsuffixed aggregates. Only this script emits LaTeX for
-``log_info``, ``variant_power_law``, and ``log_n_scaling``.
+Merges shards produced by ``main.py --parallel`` (steps 01 and 03) under an
+n-grams results root:
 
-Does not touch attachments or plots.
+- ``log_info_<LOG>.csv`` → ``log_info.csv`` + ``.tex``
+- ``<concept>/<model>/{gof,comparison,summary}_<LOG>.csv`` → unsuffixed CSVs
+
+Optional ``--datasets`` keeps only shards for the listed logs.
+
+Does not compose tables/plots; run ``05_compose_results.py`` afterwards
+(``main.py --combine`` runs 04 then 05).
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import sys
 from pathlib import Path
 from typing import List, Sequence
@@ -31,14 +35,25 @@ CONCEPT_CHOICES = ["variants", "activities", "dfrs", *NGRAM_CONCEPTS]
 CLASET_STEMS = ("gof", "comparison", "summary")
 
 
-def _load_compose_module():
-    path = Path(__file__).resolve().parent / "04_compose_results.py"
-    spec = importlib.util.spec_from_file_location("n_grams_compose_results", path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def _filter_shards_by_log(
+    matches: Sequence[Path],
+    *,
+    prefix: str,
+    datasets: Sequence[str] | None,
+) -> list[Path]:
+    """Keep shards named ``{prefix}<LOG>.csv`` when ``datasets`` is set."""
+    if datasets is None:
+        return list(matches)
+    allowed = set(datasets)
+    kept: list[Path] = []
+    for path in matches:
+        name = path.name
+        if not (name.startswith(prefix) and name.endswith(".csv")):
+            continue
+        log_name = name[len(prefix) : -len(".csv")]
+        if log_name in allowed:
+            kept.append(path)
+    return kept
 
 
 def _concat_sorted_csvs(
@@ -70,8 +85,12 @@ def _combine_glob(
     out_path: Path,
     *,
     sort_cols: Sequence[str],
+    prefix: str,
+    datasets: Sequence[str] | None,
 ) -> bool:
-    matches = list(directory.glob(pattern))
+    matches = _filter_shards_by_log(
+        directory.glob(pattern), prefix=prefix, datasets=datasets
+    )
     if not matches:
         return False
     combined = _concat_sorted_csvs(matches, sort_cols=sort_cols)
@@ -84,8 +103,14 @@ def _combine_glob(
     return True
 
 
-def combine_log_info(output_dir: Path) -> None:
-    matches = list(output_dir.glob("log_info_*.csv"))
+def combine_log_info(
+    output_dir: Path, *, datasets: Sequence[str] | None = None
+) -> None:
+    matches = _filter_shards_by_log(
+        output_dir.glob("log_info_*.csv"),
+        prefix="log_info_",
+        datasets=datasets,
+    )
     if not matches:
         print(f"Warning: no log_info_*.csv under {output_dir}")
         return
@@ -101,7 +126,12 @@ def combine_log_info(output_dir: Path) -> None:
     _write_latex_from_csv(combined, tex_path, stats)
 
 
-def combine_clauset(output_dir: Path, concepts: Sequence[str]) -> None:
+def combine_clauset(
+    output_dir: Path,
+    concepts: Sequence[str],
+    *,
+    datasets: Sequence[str] | None = None,
+) -> None:
     for concept in concepts:
         concept_dir = output_dir / concept
         if not concept_dir.is_dir():
@@ -120,59 +150,14 @@ def combine_clauset(output_dir: Path, concepts: Sequence[str]) -> None:
                     f"{stem}_*.csv",
                     model_dir / f"{stem}.csv",
                     sort_cols=sort_cols,
+                    prefix=f"{stem}_",
+                    datasets=datasets,
                 )
-
-
-def combine_compose_tables(output_dir: Path, compose_mod) -> None:
-    variant_matches = list(output_dir.glob("variant_power_law_*.csv"))
-    if variant_matches:
-        combined = _concat_sorted_csvs(variant_matches, sort_cols=["Log"])
-        if combined is not None:
-            compose_mod.write_table_csv_and_tex(
-                combined,
-                output_dir / "variant_power_law.csv",
-                output_dir / "variant_power_law.tex",
-                caption="Trace variant power-law results",
-            )
-    else:
-        print(f"Warning: no variant_power_law_*.csv under {output_dir}")
-
-    fitted_matches = list(output_dir.glob("log_n_fitted_types_*.csv"))
-    fitted_combined = None
-    if fitted_matches:
-        fitted_combined = _concat_sorted_csvs(fitted_matches, sort_cols=["Log"])
-        if fitted_combined is not None:
-            compose_mod.write_table_csv(
-                fitted_combined,
-                output_dir / "log_n_fitted_types.csv",
-            )
-    else:
-        print(f"Warning: no log_n_fitted_types_*.csv under {output_dir}")
-
-    scaling_matches = list(output_dir.glob("log_n_scaling_*.csv"))
-    if scaling_matches:
-        scaling_combined = _concat_sorted_csvs(scaling_matches, sort_cols=["Log"])
-        if scaling_combined is not None:
-            if fitted_combined is None:
-                fitted_combined = pd.DataFrame(columns=scaling_combined.columns)
-            compose_mod.write_table_csv_and_tex(
-                scaling_combined,
-                output_dir / "log_n_scaling.csv",
-                output_dir / "log_n_scaling.tex",
-                caption="Log x n power-law scaling",
-                legend=compose_mod.SCALING_LEGEND,
-                latex_body=compose_mod.scaling_dataframe_to_latex(
-                    scaling_combined, fitted_combined
-                ),
-                footnote=compose_mod.SCALING_GRAY_FOOTNOTE,
-            )
-    else:
-        print(f"Warning: no log_n_scaling_*.csv under {output_dir}")
 
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Combine n-grams --parallel CSV shards into aggregates + LaTeX"
+        description="Combine n-grams parallel shards (log_info + Clauset) into aggregates"
     )
     parser.add_argument(
         "--output-dir",
@@ -187,6 +172,12 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         choices=CONCEPT_CHOICES,
         help="Concepts whose Clauset shards to merge (default: n1..n10 + variants)",
     )
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        default=None,
+        help="Optional log filter: only merge shards for these datasets",
+    )
     return parser.parse_args(argv)
 
 
@@ -196,11 +187,12 @@ def main(argv: List[str] | None = None) -> None:
     if not output_dir.is_dir():
         raise SystemExit(f"Error: output directory not found: {output_dir}")
 
-    compose_mod = _load_compose_module()
+    datasets = list(args.datasets) if args.datasets else None
     print(f"Combining parallel shards under: {output_dir}")
-    combine_log_info(output_dir)
-    combine_clauset(output_dir, args.concepts)
-    combine_compose_tables(output_dir, compose_mod)
+    if datasets is not None:
+        print(f"Dataset filter: {datasets}")
+    combine_log_info(output_dir, datasets=datasets)
+    combine_clauset(output_dir, args.concepts, datasets=datasets)
     print(f"Combine complete: {output_dir}")
 
 
