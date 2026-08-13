@@ -40,12 +40,15 @@ unittest, not a `main.py` flag:
 
 ```bash
 python -m unittest tests.test_pl_synthetic
-# slow Monte Carlo calibration (not default CI)
-RUN_PL_CALIBRATION=1 python -m unittest tests.test_pl_synthetic.SyntheticPLCalibrationTests
-python tests/test_pl_synthetic.py --calibrate
+# slow GOF-implementation test (Type I error; not default CI)
+RUN_PL_GOF_TEST=1 python -m unittest tests.test_pl_synthetic.SyntheticPLGofImplementationTests
+python tests/test_pl_synthetic.py --gof-test
+# cluster: E2E + GOF-implementation (edit CONFIG in the script)
+mkdir -p .slurm/logs
+sbatch .slurm/test_pl_synthetic.sh
 ```
 
-Attachments land under `results/test/attachments/<concept>/TEST/`; Clauset CSVs
+Attachments land under `results/test/attachments/variants/TEST/`; Clauset CSVs
 under `results/test/n_grams/`.
 
 ## Parallel mode (Slurm)
