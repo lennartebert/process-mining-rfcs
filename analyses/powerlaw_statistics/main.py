@@ -1,10 +1,10 @@
-"""Ordered runner for the n-gram analysis pipeline.
+"""Ordered runner for the power-law statistics analysis pipeline.
 
 Default (serial): ``01 -> 02 -> 03 -> 05`` (describe, extract, Clauset, compose).
 Step 04 (combine) is skipped because there are no parallel shards.
 
 ``--parallel`` (one dataset): ``01 -> 02 -> 03`` only, writing per-log shards.
-After all array tasks finish, run ``--combine`` (or ``.slurm/n_grams_combine.sh``)
+After all array tasks finish, run ``--combine`` (or ``.slurm/powerlaw_statistics_combine.sh``)
 to execute ``04 -> 05`` (merge shards, then compose).
 
 ``--test`` runs TEST_BPIC12 with concepts variants, n1, n2 and fewer bootstraps.
@@ -27,11 +27,11 @@ from utils.constants import (
     ALL_REAL_LOGS_TOKEN,
     ALL_SIM_LOG_DATASETS,
     ALL_SIM_LOGS_TOKEN,
-    N_GRAMS_REAL_DIR,
-    N_GRAMS_SIM_DIR,
+    POWERLAW_STATISTICS_REAL_DIR,
+    POWERLAW_STATISTICS_SIM_DIR,
     TEST_ATTACHMENTS_DIR,
     TEST_DATASET,
-    TEST_N_GRAMS_DIR,
+    TEST_POWERLAW_STATISTICS_DIR,
 )
 from utils.io.attachments import NGRAM_CONCEPTS
 
@@ -114,7 +114,7 @@ def _results_dir(
     if args.output_dir:
         return args.output_dir
     if args.test:
-        return str(TEST_N_GRAMS_DIR)
+        return str(TEST_POWERLAW_STATISTICS_DIR)
     if datasets:
         sim_flags = [name.endswith("_sim") for name in datasets]
         if any(sim_flags) and not all(sim_flags):
@@ -123,8 +123,8 @@ def _results_dir(
                 "(shared CSVs must not mix sources)."
             )
         if all(sim_flags):
-            return str(N_GRAMS_SIM_DIR)
-    return str(N_GRAMS_REAL_DIR)
+            return str(POWERLAW_STATISTICS_SIM_DIR)
+    return str(POWERLAW_STATISTICS_REAL_DIR)
 
 
 def _argv_for_step(
@@ -202,7 +202,7 @@ def _argv_for_step(
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the n-gram analysis pipeline "
+            "Run the power-law statistics analysis pipeline "
             "(serial 01->02->03->05; parallel 01->02->03; --combine 04->05)"
         )
     )
@@ -241,7 +241,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
             f"Quick smoke run: dataset {TEST_DATASET}, concepts "
             f"{', '.join(TEST_CONCEPTS)} unless --concepts is set, "
             f"attachments under {TEST_ATTACHMENTS_DIR}, "
-            f"Clauset/compose under {TEST_N_GRAMS_DIR}, "
+            f"Clauset/compose under {TEST_POWERLAW_STATISTICS_DIR}, "
             f"and n-bootstraps={TEST_N_BOOTSTRAPS}"
         ),
     )
@@ -285,9 +285,9 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         type=str,
         default=None,
         help=(
-            "N-grams results root (default: results/n_grams/real, "
-            "or results/n_grams/sim for *_sim logs; "
-            "with --test: results/test/n_grams)"
+            "Power-law statistics results root (default: results/powerlaw_statistics/real, "
+            "or results/powerlaw_statistics/sim for *_sim logs; "
+            "with --test: results/test/powerlaw_statistics)"
         ),
     )
     parser.add_argument(
@@ -349,7 +349,7 @@ def main(argv: List[str] | None = None) -> None:
             add_start_end=args.add_start_end,
             passthrough=args.passthrough,
         )
-        print(f"$ python analyses/n_grams/{filename} {' '.join(step_argv)}")
+        print(f"$ python analyses/powerlaw_statistics/{filename} {' '.join(step_argv)}")
         module.main(step_argv)
 
 

@@ -1,8 +1,8 @@
 """Step 04: compose n-gram Clauset results into tables and plots.
 
-Reads ``<concept>/<power-law-model>/`` summaries under the n-grams results root
+Reads ``<concept>/<power-law-model>/`` summaries under the power-law statistics results root
 and writes tables to a categorization subfolder
-(default: ``results/n_grams/real/min-types-30_gof-p-0.1_comparison-p-0.1``).
+(default: ``results/powerlaw_statistics/real/min-types-30_gof-p-0.1_comparison-p-0.1``).
 Per-log RFC / PDF / CCDF plots are independent of categorization and always
 land under ``<output-dir>/plots/<log>/`` (use ``--skip-plots`` to omit them).
 
@@ -41,7 +41,7 @@ from utils.powerlaw import (
     llr_preference,
     select_best_other_distribution,
 )
-from utils.constants import N_GRAMS_REAL_DIR
+from utils.constants import POWERLAW_STATISTICS_REAL_DIR
 from utils.io.attachments import NGRAM_CONCEPTS
 
 VARIANT_TABLE_COLUMNS = [
@@ -1108,7 +1108,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=None,
-        help=f"N-grams results root (default: {N_GRAMS_REAL_DIR})",
+        help=f"Power-law statistics results root (default: {POWERLAW_STATISTICS_REAL_DIR})",
     )
     parser.add_argument(
         "--tests-root",
@@ -1167,7 +1167,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
 
 def main(argv: List[str] | None = None) -> None:
     args = parse_args(argv)
-    output_root = Path(args.output_dir) if args.output_dir else N_GRAMS_REAL_DIR
+    output_root = Path(args.output_dir) if args.output_dir else POWERLAW_STATISTICS_REAL_DIR
     tests_root = Path(args.tests_root) if args.tests_root else output_root
     min_types = int(args.min_types)
     gof_p_threshold = float(args.gof_p)

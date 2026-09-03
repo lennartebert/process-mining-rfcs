@@ -21,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import TEST_ATTACHMENTS_DIR, TEST_N_GRAMS_DIR, TEST_RESULTS_DIR
+from utils.constants import TEST_ATTACHMENTS_DIR, TEST_POWERLAW_STATISTICS_DIR, TEST_RESULTS_DIR
 from utils.io.attachments import (
     REQUIRED_ATTACHMENT_COLUMNS,
     load_attachments,
@@ -45,7 +45,7 @@ N_BOOTSTRAPS_E2E = 1000
 ATTACHMENT_TIME = "1970-01-01T00:00:00"
 
 ATTACHMENTS_ROOT = REPO_ROOT / TEST_ATTACHMENTS_DIR
-N_GRAMS_ROOT = REPO_ROOT / TEST_N_GRAMS_DIR
+POWERLAW_STATISTICS_ROOT = REPO_ROOT / TEST_POWERLAW_STATISTICS_DIR
 TRUTH_PATH = REPO_ROOT / TEST_RESULTS_DIR / "synthetic_truth.json"
 CONCEPTS = ["variants"]
 
@@ -156,7 +156,7 @@ def run_synthetic_e2e(*, n_bootstraps: int = N_BOOTSTRAPS_E2E) -> None:
     TRUTH_PATH.parent.mkdir(parents=True, exist_ok=True)
     TRUTH_PATH.write_text(json.dumps(truth, indent=2) + "\n")
 
-    step_path = REPO_ROOT / "analyses" / "n_grams" / "03_clauset_tests.py"
+    step_path = REPO_ROOT / "analyses" / "powerlaw_statistics" / "03_clauset_tests.py"
     spec = importlib.util.spec_from_file_location(step_path.stem, step_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load {step_path}")
@@ -171,7 +171,7 @@ def run_synthetic_e2e(*, n_bootstraps: int = N_BOOTSTRAPS_E2E) -> None:
             "--attachments-dir",
             str(ATTACHMENTS_ROOT),
             "--output-dir",
-            str(N_GRAMS_ROOT),
+            str(POWERLAW_STATISTICS_ROOT),
             "--n-bootstraps",
             str(int(n_bootstraps)),
             "--random-seed",
@@ -182,7 +182,7 @@ def run_synthetic_e2e(*, n_bootstraps: int = N_BOOTSTRAPS_E2E) -> None:
     rows: list[dict] = []
     for concept in CONCEPTS:
         for model in clauset_tests.models_for_concept(concept):
-            summary_path = N_GRAMS_ROOT / concept / model / "summary.csv"
+            summary_path = POWERLAW_STATISTICS_ROOT / concept / model / "summary.csv"
             assert summary_path.exists(), f"missing {summary_path}"
             summary = pd.read_csv(summary_path)
             assert len(summary) == 1
@@ -199,7 +199,7 @@ def run_synthetic_e2e(*, n_bootstraps: int = N_BOOTSTRAPS_E2E) -> None:
                 f"{model} alpha {alpha:.3f} diverges more than 0.5 from {ALPHA_TRUE}"
             )
 
-            comparison = pd.read_csv(N_GRAMS_ROOT / concept / model / "comparison.csv")
+            comparison = pd.read_csv(POWERLAW_STATISTICS_ROOT / concept / model / "comparison.csv")
             p = pd.to_numeric(comparison["p"], errors="coerce")
             finite_p = p[np.isfinite(p)]
             if not finite_p.empty:
@@ -231,8 +231,8 @@ def run_synthetic_e2e(*, n_bootstraps: int = N_BOOTSTRAPS_E2E) -> None:
                 }
             )
 
-    N_GRAMS_ROOT.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows).to_csv(N_GRAMS_ROOT / "synthetic_validation.csv", index=False)
+    POWERLAW_STATISTICS_ROOT.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(rows).to_csv(POWERLAW_STATISTICS_ROOT / "synthetic_validation.csv", index=False)
 
 
 class SyntheticFullRangeE2ETests(unittest.TestCase):

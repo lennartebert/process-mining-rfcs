@@ -2,85 +2,106 @@
 
 Author: Lennart Ebert (lennart.ebert@hu-berlin.de).
 
-Utilities and CLI workflows for rank-frequency-curve (RFC) analysis in process mining, including:
+Utilities and CLI workflows for rank-frequency-curve (RFC) analysis and
+power-law testing of process event logs.
 
-- attachment extraction from event logs,
-- n-gram and variant power-law (Clauset) analysis,
-- synthetic process simulation experiments,
-- preferential-attachment measurement,
-- case-attribute analysis.
-
-## TL;DR
-
-### Online appendix files
-- `results/perm/…`: copy selected generated outputs here to keep them in git
-- Example snapshots currently under `results/perm/log_info/`, `results/perm/variants/`, `results/perm/experiments/`
-
-### Results layout (generated)
-
-```text
-results/
-  attachments/<concept>/<log>/attachments.csv.gz   # shared inputs
-  rfcs/log_info.csv|.tex                          # RFC-analysis log info (if produced there)
-  rfcs/experiments/…                               # simulation notebooks
-  rfcs/<log>/…                                     # per-log RFC plot PDFs
-  rfcs/<concept>/…                                 # tabular RFC/PDF analysis
-  n_grams/log_info.csv|.tex                        # n-grams pipeline log info
-  n_grams/<concept>/<model>/…                      # Clauset CSVs
-  n_grams/variant_power_law.csv|.tex
-  n_grams/log_n_fitted_types.csv
-  n_grams/log_n_scaling.csv|.tex
-  n_grams/plots/<log>/…
-  preferential_attachment/…
-  case_attributes/…
-  test/…                                           # --test smoke outputs
-  perm/…                                           # git-tracked permanent copies (manual)
-```
-
-### Reproducing the study
+## Installation
 
 ```bash
-# 1) create environment
 conda env create -f environment.yml
 conda activate process-mining-rfcs
-
-# 2) n-gram pipeline (describe -> extract variants+n1..n10 -> Clauset tests)
-python analyses/n_grams/main.py --datasets TEST_BPIC12
 ```
 
-More recipes: [`analyses/n_grams/README.md`](analyses/n_grams/README.md).
+Use the `process-mining-rfcs` Jupyter kernel for notebooks. Run commands from
+the repository root.
 
-If you want to (re)calculate attachments from raw logs, place your `.xes` files under `data/`, create a copy of the data dictionary (to be placed `data/data_dictionary.json`) and ensure refer to the data sets in the dictionary.
-If `results/attachments/.../attachments.csv.gz` already exists, extraction is skipped by default.
-
-You can also run the analysis/simulation notebooks:
+Shared CLIs:
 
 ```bash
-jupyter notebook analyses/rfcs/analyze_powerlaw_single_log.ipynb
-jupyter notebook analyses/rfcs/interactive_simulation_experiments.ipynb
-jupyter notebook analyses/rfcs/preset_simulation_experiments.ipynb
+python cli/log_info.py --help
+python cli/extract_attachments.py --help
+python cli/clauset_power_law.py --help
 ```
 
-Use the `process-mining-rfcs` Jupyter kernel for these notebooks.
+If you want to (re)calculate attachments from raw logs, place your `.xes` files
+under `data/`, create a copy of the data dictionary (to be placed
+`data/data_dictionary.json`) and refer to the data sets in the dictionary.
+If `results/attachments/.../attachments.csv.gz` already exists, extraction is
+skipped by default.
+
+## Analyses
+
+This repository contains analyses supporting the following papers. Per-analysis
+details live in each folder’s README.
+
+### Rank-frequency curves (RFCs)
+
+Folder: [`analyses/rfcs/`](analyses/rfcs/). Details:
+[`analyses/rfcs/README.md`](analyses/rfcs/README.md).
+
+Lennart Ebert, Kate Revoredo, Jan Mendling, and Benoît Depaire. 2026.
+Understanding Process Dynamics through Trace Variant Rank-Frequency Curves.
+In Workshop on Change, Drift, and Dynamics of Organizational Processes (ProDy)
+at the International Conference on Business Process Management (BPM Workshops
+2026) (Accepted for publication).
+
+Interactive simulation notebook (permalink copy at the repository root, also
+under `analyses/rfcs/`):
+
+```bash
+jupyter notebook interactive_simulation_experiments.ipynb
+jupyter notebook analyses/rfcs/interactive_simulation_experiments.ipynb
+jupyter notebook analyses/rfcs/preset_simulation_experiments.ipynb
+jupyter notebook analyses/rfcs/analyze_powerlaw_single_log.ipynb
+```
+
+### Power-law statistics
+
+Folder: [`analyses/powerlaw_statistics/`](analyses/powerlaw_statistics/).
+Details: [`analyses/powerlaw_statistics/README.md`](analyses/powerlaw_statistics/README.md).
+
+From Activities to Trace Variants: Testing Power-Law Compatibility Across
+Levels of Behavioral Abstraction (submitted).
+
+```bash
+python analyses/powerlaw_statistics/main.py --datasets TEST_BPIC12
+```
+
+Other analyses in this repository are under development and are not listed here.
 
 ## Repository structure
 
 ```text
 data/                 # event logs, data_dictionary.json, images/
-results/              # generated outputs (see TL;DR layout; perm/ = git appendix)
+results/              # generated outputs (perm/ = git-tracked appendix)
 utils/                # reusable library (no CLI entrypoints)
 cli/                  # shared CLIs only (import utils/)
   log_info.py
   extract_attachments.py
   clauset_power_law.py
 analyses/
-  rfcs/               # notebooks only
-  n_grams/            # 01 describe -> 02 extract -> 03 Clauset -> 04 compose
-  preferential_attachment/
-  case_attributes/    # 01 -> 02 -> 03 (+ main.py)
-  others/             # legacy / misc scripts (may be removed later)
+  rfcs/               # notebooks (interactive copy also at repo root)
+  powerlaw_statistics/# 01 describe -> 02 extract -> 03 Clauset -> 04 combine -> 05 compose
 tests/
+interactive_simulation_experiments.ipynb  # permalink copy of analyses/rfcs/
 ```
+
+```text
+results/
+  attachments/<concept>/<log>/attachments.csv.gz
+  rfcs/experiments/…
+  rfcs/<log>/…
+  powerlaw_statistics/log_info.csv|.tex
+  powerlaw_statistics/<concept>/<model>/…
+  powerlaw_statistics/variant_power_law.csv|.tex
+  powerlaw_statistics/plots/<log>/…
+  test/…
+  perm/rfcs/…
+  perm/powerlaw_statistics/…
+```
+
+`results/perm/` holds git-tracked permanent copies (manual). Other paths under
+`results/` are generated and gitignored.
 
 Dependency rule: analysis step scripts do not import each other. They may call
 shared `cli/` tools and `utils/`. Per-analysis `main.py` files only orchestrate
@@ -94,32 +115,6 @@ For attachment extraction, variant counting, and activity statistics (`log_info`
 - Otherwise, activities are taken from **`concept:name`** only.
 
 The same logic lives in `utils/io/activity_labels.py` and is used by `extract_attachments` and `log_info`.
-
-## Running analyses
-
-Shared CLIs (run from the repository root):
-
-```bash
-python cli/log_info.py --help
-python cli/extract_attachments.py --help
-python cli/clauset_power_law.py --help
-```
-
-Topic pipelines:
-
-```bash
-python analyses/n_grams/main.py --help
-python analyses/case_attributes/main.py --help
-python analyses/preferential_attachment/detect_preferential_attachment.py --help
-```
-
-Details:
-
-- [`analyses/n_grams/README.md`](analyses/n_grams/README.md)
-- [`analyses/case_attributes/README.md`](analyses/case_attributes/README.md)
-- [`analyses/preferential_attachment/README.md`](analyses/preferential_attachment/README.md)
-- [`analyses/rfcs/README.md`](analyses/rfcs/README.md)
-- [`analyses/others/README.md`](analyses/others/README.md)
 
 ## Data
 

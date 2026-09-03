@@ -13,10 +13,10 @@ if str(REPO_ROOT) not in sys.path:
 
 from cli import log_info
 from cli.log_info import ALL_STATS, DEFAULT_STATS
-from utils.constants import N_GRAMS_REAL_DIR
+from utils.constants import POWERLAW_STATISTICS_REAL_DIR
 
-# n_grams describe always includes trace-length stats by default.
-N_GRAMS_DEFAULT_STATS: List[str] = [
+# powerlaw_statistics describe always includes trace-length stats by default.
+POWERLAW_STATISTICS_DEFAULT_STATS: List[str] = [
     *DEFAULT_STATS,
     "Median Trace Length",
     "Max Trace Length",
@@ -31,19 +31,19 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--stats",
         nargs="+",
-        default=list(N_GRAMS_DEFAULT_STATS),
+        default=list(POWERLAW_STATISTICS_DEFAULT_STATS),
         choices=ALL_STATS,
         help=(
             "Log stats to extract (default: "
-            + ", ".join(f"'{s}'" for s in N_GRAMS_DEFAULT_STATS)
+            + ", ".join(f"'{s}'" for s in POWERLAW_STATISTICS_DEFAULT_STATS)
             + ")."
         ),
     )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=str(N_GRAMS_REAL_DIR),
-        help=f"Output directory for log_info.csv/.tex (default: {N_GRAMS_REAL_DIR})",
+        default=str(POWERLAW_STATISTICS_REAL_DIR),
+        help=f"Output directory for log_info.csv/.tex (default: {POWERLAW_STATISTICS_REAL_DIR})",
     )
     parser.add_argument(
         "--force-recalculate",

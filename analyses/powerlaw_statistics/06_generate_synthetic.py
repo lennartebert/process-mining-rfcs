@@ -1,4 +1,4 @@
-"""Standalone first-order DFG simulator for n-grams analysis.
+"""Standalone first-order DFG simulator for power-law statistics analysis.
 
 For each source log, count directly-follows relations (with START/END pads),
 build a per-activity CDF of next activities, and sample the same number of
@@ -7,8 +7,8 @@ traces as the source. Writes ``data/synthetic/<LOG>_sim/<LOG>_sim.xes.gz``
 
 Not wired into ``main.py``. Run directly:
 
-    python analyses/n_grams/06_generate_synthetic.py
-    python analyses/n_grams/06_generate_synthetic.py --datasets ACCRE
+    python analyses/powerlaw_statistics/06_generate_synthetic.py
+    python analyses/powerlaw_statistics/06_generate_synthetic.py --datasets ACCRE
 """
 
 from __future__ import annotations
@@ -218,7 +218,7 @@ def generate_for_dataset(
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Simulate first-order DFG logs for n-grams analysis "
+            "Simulate first-order DFG logs for power-law statistics analysis "
             "(writes data/synthetic/<LOG>_sim/ and updates the data dictionary)"
         )
     )

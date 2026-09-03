@@ -4,7 +4,11 @@ Interactive and exploratory notebooks for rank-frequency-curve (RFC) analysis
 and synthetic process simulation. These notebooks import `utils/` only (no local
 analysis scripts in this folder).
 
+A permalink copy of the interactive notebook also lives at the repository root
+(`interactive_simulation_experiments.ipynb`).
+
 ```bash
+jupyter notebook interactive_simulation_experiments.ipynb
 jupyter notebook analyses/rfcs/analyze_powerlaw_single_log.ipynb
 jupyter notebook analyses/rfcs/interactive_simulation_experiments.ipynb
 jupyter notebook analyses/rfcs/preset_simulation_experiments.ipynb
@@ -18,9 +22,6 @@ Paths:
 - Simulation experiments: `results/rfcs/experiments/`
 - Log info / RFC tables & plots: `results/rfcs/`
 
-Related CLI pipelines live elsewhere:
+Related CLI pipeline:
 
-- N-grams / Clauset batch: [`analyses/n_grams/`](../n_grams/)
-- Preferential attachment: [`analyses/preferential_attachment/`](../preferential_attachment/)
-- Case attributes: [`analyses/case_attributes/`](../case_attributes/)
-- Legacy helpers: [`analyses/others/`](../others/)
+- Power-law statistics / Clauset batch: [`analyses/powerlaw_statistics/`](../powerlaw_statistics/)

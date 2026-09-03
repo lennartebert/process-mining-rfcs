@@ -6,16 +6,16 @@ from pathlib import Path
 RESULTS_DIR = Path("results")
 ATTACHMENTS_DIR = RESULTS_DIR / "attachments"
 RFCS_DIR = RESULTS_DIR / "rfcs"
-N_GRAMS_DIR = RESULTS_DIR / "n_grams"
-N_GRAMS_REAL_DIR = N_GRAMS_DIR / "real"
-N_GRAMS_SIM_DIR = N_GRAMS_DIR / "sim"
+POWERLAW_STATISTICS_DIR = RESULTS_DIR / "powerlaw_statistics"
+POWERLAW_STATISTICS_REAL_DIR = POWERLAW_STATISTICS_DIR / "real"
+POWERLAW_STATISTICS_SIM_DIR = POWERLAW_STATISTICS_DIR / "sim"
 PREFERENTIAL_ATTACHMENT_DIR = RESULTS_DIR / "preferential_attachment"
 CASE_ATTRIBUTES_DIR = RESULTS_DIR / "case_attributes"
 # log_info.csv / .tex live directly under rfcs/ (not a nested log_info/ folder).
 LOG_INFO_DIR = RFCS_DIR
 TEST_RESULTS_DIR = RESULTS_DIR / "test"
 TEST_ATTACHMENTS_DIR = TEST_RESULTS_DIR / "attachments"
-TEST_N_GRAMS_DIR = TEST_RESULTS_DIR / "n_grams"
+TEST_POWERLAW_STATISTICS_DIR = TEST_RESULTS_DIR / "powerlaw_statistics"
 TEST_DATASET = "TEST_BPIC12"
 # Manual copy+paste staging for git-tracked permanent results (never auto-written).
 PERM_RESULTS_DIR = RESULTS_DIR / "perm"

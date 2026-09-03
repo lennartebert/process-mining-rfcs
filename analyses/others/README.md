@@ -1,6 +1,6 @@
 # Other / legacy analysis scripts
 
-Unnumbered helpers that are not part of the main `n_grams`,
+Unnumbered helpers that are not part of the main `powerlaw_statistics`,
 `preferential_attachment`, or `case_attributes` pipelines. Candidates for later
 removal.
 
