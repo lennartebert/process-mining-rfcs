@@ -1,0 +1,4 @@
+concept,model,alpha_true,xmin_true,types,seed,n_bootstraps,alpha,xmin,xmax,n_types,n_fitted_types,gof_p,KS_D,classification,best_other_distribution
+variants,full_range_power_law,2.0,1,1000,42,2500,1.985152628316132,1.0,,1000,1000,0.0192,0.024255140742972,(1) >= 30 fitted types; (2) full range power law not plausible (p<0.1); (3) alternatives inconclusive,lognormal
+variants,lower_bounded_power_law,2.0,1,1000,42,2500,1.898441089167274,2.0,,1000,373,0.7728,0.0150492614567109,(1) >= 30 fitted types; (2) lower bounded power law plausible (p>=0.1); (3) alternatives inconclusive,lognormal
+variants,doubly_bounded_power_law,2.0,1,1000,42,2500,1.8714822568203715,2.0,78.0,1000,364,0.7332,0.0142081356032736,(1) >= 30 fitted types; (2) doubly bounded power law plausible (p>=0.1); (3) alternatives inconclusive,lognormal

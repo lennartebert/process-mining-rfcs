@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,alpha,xmin,xmax,KS_D,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,gof_p,n_success,n_failed,gof_kind,fit_valid,classification,best_other_distribution
+BPIC15_4,results/attachments/variants/BPIC15_4/attachments.csv.gz,,,,,,,,,,,,,,,,,,error during fitting (No data points in defined range of the distribution.),

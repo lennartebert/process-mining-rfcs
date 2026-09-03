@@ -24,7 +24,9 @@ from utils.powerlaw.analyze import (
     _validate_observations,
     _xmax_candidates,
     bootstrap_gof,
+    compact_classification,
     decide_and_record,
+    llr_preference,
 )
 from utils.powerlaw.sampling import _sample_fitted_power_law
 
@@ -155,6 +157,33 @@ def _comparison_df(rows: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _preference_rows(
+    *,
+    exponential: tuple[float, float] = (1.0, 0.5),
+    lognormal: tuple[float, float] = (-0.1, 0.5),
+    stretched_exponential: tuple[float, float] = (0.2, 0.4),
+    truncated_power_law: tuple[float, float] | None = None,
+) -> list[dict]:
+    rows = [
+        {"R": exponential[0], "p": exponential[1], "model_2": "exponential"},
+        {"R": lognormal[0], "p": lognormal[1], "model_2": "lognormal"},
+        {
+            "R": stretched_exponential[0],
+            "p": stretched_exponential[1],
+            "model_2": "stretched_exponential",
+        },
+    ]
+    if truncated_power_law is not None:
+        rows.append(
+            {
+                "R": truncated_power_law[0],
+                "p": truncated_power_law[1],
+                "model_2": "truncated_power_law",
+            }
+        )
+    return rows
+
+
 class ClassifyTests(unittest.TestCase):
     def test_invalid_fit(self) -> None:
         text = _classify(
@@ -171,14 +200,28 @@ class ClassifyTests(unittest.TestCase):
         )
         self.assertIn("invalid", text)
         self.assertIn("alpha_at_parameter_boundary", text)
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=50,
+                gof_p=0.5,
+                comparison_df=_comparison_df(_preference_rows()),
+                fit_valid=False,
+            ),
+            "A",
+        )
 
-    def test_plausible_and_preferred(self) -> None:
+    def test_pl_best_requires_all_counted_alternatives(self) -> None:
+        comparison = _comparison_df(
+            _preference_rows(
+                exponential=(2.0, 0.01),
+                lognormal=(1.5, 0.02),
+                stretched_exponential=(1.2, 0.03),
+            )
+        )
         text = _classify(
             n_fitted_types=40,
             gof_p=0.4,
-            comparison_df=_comparison_df(
-                [{"R": 2.0, "p": 0.01, "model_2": "lognormal"}]
-            ),
+            comparison_df=comparison,
             model_label="full range power law",
             minimum_fitted_types=30,
             significance_level=0.1,
@@ -187,15 +230,88 @@ class ClassifyTests(unittest.TestCase):
         )
         self.assertIn("(1) >= 30 fitted types", text)
         self.assertIn("plausible", text)
-        self.assertIn("preferred over alternatives", text)
+        self.assertIn("PL preferred", text)
+        self.assertEqual(llr_preference(comparison), "PL preferred")
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=40, gof_p=0.4, comparison_df=comparison
+            ),
+            "D",
+        )
 
-    def test_not_plausible_alternatives_preferred(self) -> None:
+    def test_beating_only_exponential_is_plausible(self) -> None:
+        comparison = _comparison_df(
+            _preference_rows(
+                exponential=(489.0, 1e-8),
+                lognormal=(-0.15, 0.70),
+                stretched_exponential=(2.58, 0.34),
+                truncated_power_law=(-0.46, 0.34),
+            )
+        )
+        text = _classify(
+            n_fitted_types=40,
+            gof_p=0.4,
+            comparison_df=comparison,
+            model_label="full range power law",
+            minimum_fitted_types=30,
+            significance_level=0.1,
+            fit_valid=True,
+            pathology_flags=[],
+        )
+        self.assertIn("alternatives inconclusive", text)
+        self.assertEqual(llr_preference(comparison), "alternatives inconclusive")
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=40, gof_p=0.4, comparison_df=comparison
+            ),
+            "E",
+        )
+
+    def test_tpl_win_does_not_count_as_other_preferred(self) -> None:
+        comparison = _comparison_df(
+            _preference_rows(
+                exponential=(2.0, 0.4),
+                lognormal=(-0.2, 0.5),
+                stretched_exponential=(0.1, 0.6),
+                truncated_power_law=(-3.0, 0.01),
+            )
+        )
+        self.assertEqual(llr_preference(comparison), "alternatives inconclusive")
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=50, gof_p=0.5, comparison_df=comparison
+            ),
+            "E",
+        )
+
+    def test_other_preferred_when_lognormal_wins(self) -> None:
+        comparison = _comparison_df(
+            _preference_rows(
+                exponential=(200.0, 1e-8),
+                lognormal=(-0.69, 0.06),
+                stretched_exponential=(-0.17, 0.83),
+            )
+        )
+        self.assertEqual(llr_preference(comparison), "alternative preferred")
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=89, gof_p=0.24, comparison_df=comparison
+            ),
+            "C",
+        )
+
+    def test_few_fitted_types_is_unknown(self) -> None:
+        comparison = _comparison_df(
+            _preference_rows(
+                exponential=(2.0, 0.01),
+                lognormal=(1.5, 0.02),
+                stretched_exponential=(1.2, 0.03),
+            )
+        )
         text = _classify(
             n_fitted_types=10,
-            gof_p=0.01,
-            comparison_df=_comparison_df(
-                [{"R": -1.5, "p": 0.02, "model_2": "exponential"}]
-            ),
+            gof_p=0.4,
+            comparison_df=comparison,
             model_label="lower bounded power law",
             minimum_fitted_types=30,
             significance_level=0.1,
@@ -203,16 +319,41 @@ class ClassifyTests(unittest.TestCase):
             pathology_flags=[],
         )
         self.assertIn("(1) < 30 fitted types", text)
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=10, gof_p=0.4, comparison_df=comparison
+            ),
+            "A",
+        )
+
+    def test_not_plausible(self) -> None:
+        comparison = _comparison_df(
+            _preference_rows(exponential=(-1.5, 0.02))
+        )
+        text = _classify(
+            n_fitted_types=40,
+            gof_p=0.01,
+            comparison_df=comparison,
+            model_label="lower bounded power law",
+            minimum_fitted_types=30,
+            significance_level=0.1,
+            fit_valid=True,
+            pathology_flags=[],
+        )
         self.assertIn("not plausible", text)
-        self.assertIn("alternatives preferred", text)
+        self.assertIn("alternative preferred", text)
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=40, gof_p=0.01, comparison_df=comparison
+            ),
+            "B",
+        )
 
     def test_gof_unavailable_inconclusive(self) -> None:
         text = _classify(
             n_fitted_types=35,
             gof_p=float("nan"),
-            comparison_df=_comparison_df(
-                [{"R": 0.1, "p": 0.5, "model_2": "lognormal"}]
-            ),
+            comparison_df=_comparison_df(_preference_rows()),
             model_label="doubly bounded power law",
             minimum_fitted_types=30,
             significance_level=0.1,
@@ -220,7 +361,54 @@ class ClassifyTests(unittest.TestCase):
             pathology_flags=[],
         )
         self.assertIn("GOF unavailable", text)
-        self.assertIn("inconclusive", text)
+        self.assertIn("alternatives inconclusive", text)
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=35,
+                gof_p=float("nan"),
+                comparison_df=_comparison_df(_preference_rows()),
+            ),
+            "A",
+        )
+
+    def test_split_gof_and_comparison_thresholds(self) -> None:
+        comparison = _comparison_df(
+            _preference_rows(
+                exponential=(2.0, 0.08),
+                lognormal=(1.5, 0.08),
+                stretched_exponential=(1.2, 0.08),
+            )
+        )
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=40,
+                gof_p=0.07,
+                comparison_df=comparison,
+                gof_p_threshold=0.1,
+                comparison_p_threshold=0.1,
+            ),
+            "B",
+        )
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=40,
+                gof_p=0.07,
+                comparison_df=comparison,
+                gof_p_threshold=0.05,
+                comparison_p_threshold=0.1,
+            ),
+            "D",
+        )
+        self.assertEqual(
+            compact_classification(
+                n_fitted_types=40,
+                gof_p=0.5,
+                comparison_df=comparison,
+                gof_p_threshold=0.1,
+                comparison_p_threshold=0.05,
+            ),
+            "E",
+        )
 
 
 class FitDispatchSmokeTests(unittest.TestCase):

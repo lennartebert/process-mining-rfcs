@@ -1,0 +1,77 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model,interpretation
+ACCRE,65,full_range_power_law,exponential,47.05104028460271,0.0152287737877398,full_range_power_law,full_range_power_law favored (distinguishable)
+ACCRE,65,full_range_power_law,lognormal,-0.2373198143344922,0.5653824923807711,lognormal,inconclusive (lognormal numerically favored)
+ACCRE,65,full_range_power_law,stretched_exponential,-0.2490213180067088,0.617451843952515,stretched_exponential,inconclusive (stretched_exponential numerically favored)
+ACCRE,65,full_range_power_law,truncated_power_law,-0.2829607928053289,0.4518841363843312,truncated_power_law,inconclusive (truncated_power_law numerically favored)
+BPIC11,981,full_range_power_law,exponential,,,,
+BPIC11,981,full_range_power_law,lognormal,,,,
+BPIC11,981,full_range_power_law,stretched_exponential,,,,
+BPIC11,981,full_range_power_law,truncated_power_law,,,,
+BPIC12,4366,full_range_power_law,exponential,,,,
+BPIC12,4366,full_range_power_law,lognormal,,,,
+BPIC12,4366,full_range_power_law,stretched_exponential,,,,
+BPIC12,4366,full_range_power_law,truncated_power_law,,,,
+BPIC13_cp,327,full_range_power_law,exponential,402.7545057273154,0.0002922665032362,full_range_power_law,full_range_power_law favored (distinguishable)
+BPIC13_cp,327,full_range_power_law,lognormal,-10.240688926597672,0.1285512832514953,lognormal,inconclusive (lognormal numerically favored)
+BPIC13_cp,327,full_range_power_law,stretched_exponential,1.8259310191452676,0.1005348138360996,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+BPIC13_cp,327,full_range_power_law,truncated_power_law,1.2416290994798906e-06,0.9987426655334536,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+BPIC13_i,2278,full_range_power_law,exponential,,,,
+BPIC13_i,2278,full_range_power_law,lognormal,,,,
+BPIC13_i,2278,full_range_power_law,stretched_exponential,,,,
+BPIC13_i,2278,full_range_power_law,truncated_power_law,,,,
+BPIC14,23272,full_range_power_law,exponential,,,,
+BPIC14,23272,full_range_power_law,lognormal,,,,
+BPIC14,23272,full_range_power_law,stretched_exponential,,,,
+BPIC14,23272,full_range_power_law,truncated_power_law,,,,
+BPIC17,15930,full_range_power_law,exponential,,,,
+BPIC17,15930,full_range_power_law,lognormal,,,,
+BPIC17,15930,full_range_power_law,stretched_exponential,,,,
+BPIC17,15930,full_range_power_law,truncated_power_law,,,,
+BPIC18,28489,full_range_power_law,exponential,,,,
+BPIC18,28489,full_range_power_law,lognormal,,,,
+BPIC18,28489,full_range_power_law,stretched_exponential,,,,
+BPIC18,28489,full_range_power_law,truncated_power_law,,,,
+BPIC19,11973,full_range_power_law,exponential,27904.982986721727,2.7400891956806404e-32,full_range_power_law,full_range_power_law favored (distinguishable)
+BPIC19,11973,full_range_power_law,lognormal,-215.29943909041228,5.738255234989093e-51,lognormal,lognormal favored (distinguishable)
+BPIC19,11973,full_range_power_law,stretched_exponential,1948.177364738181,7.714851296963811e-284,full_range_power_law,full_range_power_law favored (distinguishable)
+BPIC19,11973,full_range_power_law,truncated_power_law,0.0001830099972077,0.9847360837756932,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+BPIC20_dd,99,full_range_power_law,exponential,262.93476842601484,3.799871075180509e-11,full_range_power_law,full_range_power_law favored (distinguishable)
+BPIC20_dd,99,full_range_power_law,lognormal,-0.7105152187773991,0.2214907389558447,lognormal,inconclusive (lognormal numerically favored)
+BPIC20_dd,99,full_range_power_law,stretched_exponential,0.4744697895888166,0.5385795994305294,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+BPIC20_dd,99,full_range_power_law,truncated_power_law,-0.2386633412584462,0.489635721363006,truncated_power_law,inconclusive (truncated_power_law numerically favored)
+BPIC20_id,753,full_range_power_law,exponential,951.6004643136836,1.3341501321764117e-07,full_range_power_law,full_range_power_law favored (distinguishable)
+BPIC20_id,753,full_range_power_law,lognormal,-3.9563696575649976,0.0240024736793766,lognormal,lognormal favored (distinguishable)
+BPIC20_id,753,full_range_power_law,stretched_exponential,1.760326744722832,0.3350929807350891,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+BPIC20_id,753,full_range_power_law,truncated_power_law,-0.0884325913058368,0.674081210290354,truncated_power_law,inconclusive (truncated_power_law numerically favored)
+BPIC20_ptc,202,full_range_power_law,exponential,250.03871314575204,3.905085407353049e-06,full_range_power_law,full_range_power_law favored (distinguishable)
+BPIC20_ptc,202,full_range_power_law,lognormal,0.1219167757723367,0.8405675626990774,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+BPIC20_ptc,202,full_range_power_law,stretched_exponential,0.735257112751027,0.3350735652142098,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+BPIC20_ptc,202,full_range_power_law,truncated_power_law,-0.1756841147968439,0.5533396285450081,truncated_power_law,inconclusive (truncated_power_law numerically favored)
+BPIC20_rfp,89,full_range_power_law,exponential,202.7116823771745,1.2728953624729393e-08,full_range_power_law,full_range_power_law favored (distinguishable)
+BPIC20_rfp,89,full_range_power_law,lognormal,-0.6918539649176982,0.0588709320436631,lognormal,lognormal favored (distinguishable)
+BPIC20_rfp,89,full_range_power_law,stretched_exponential,-0.1733133096763959,0.8268822018930257,stretched_exponential,inconclusive (stretched_exponential numerically favored)
+BPIC20_rfp,89,full_range_power_law,truncated_power_law,-0.4089358376690302,0.3658031736684449,truncated_power_law,inconclusive (truncated_power_law numerically favored)
+BPIC20_tpd,1478,full_range_power_law,exponential,1681.52846068599,7.335988704870805e-11,full_range_power_law,full_range_power_law favored (distinguishable)
+BPIC20_tpd,1478,full_range_power_law,lognormal,-26.043629672021915,0.0008083258664289,lognormal,lognormal favored (distinguishable)
+BPIC20_tpd,1478,full_range_power_law,stretched_exponential,2.98546653625602,0.1831116974762369,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+BPIC20_tpd,1478,full_range_power_law,truncated_power_law,3.821186388419662e-06,0.9977942635643728,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+CALL,1690,full_range_power_law,exponential,5344.475078269124,5.583939707136862e-70,full_range_power_law,full_range_power_law favored (distinguishable)
+CALL,1690,full_range_power_law,lognormal,-10.930780159222795,8.763147087760495e-06,lognormal,lognormal favored (distinguishable)
+CALL,1690,full_range_power_law,stretched_exponential,13.507022475193397,0.0003082254618857,full_range_power_law,full_range_power_law favored (distinguishable)
+CALL,1690,full_range_power_law,truncated_power_law,-1.3490232660014048,0.100471281167817,truncated_power_law,inconclusive (truncated_power_law numerically favored)
+ITHD,226,full_range_power_law,exponential,441.31188623228974,5.908216013379597e-05,full_range_power_law,full_range_power_law favored (distinguishable)
+ITHD,226,full_range_power_law,lognormal,-10.117868190065154,0.2270004476991958,lognormal,inconclusive (lognormal numerically favored)
+ITHD,226,full_range_power_law,stretched_exponential,1.3130102243069914,0.2764213635850213,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+ITHD,226,full_range_power_law,truncated_power_law,-0.0119235432770643,0.877274627799089,truncated_power_law,inconclusive (truncated_power_law numerically favored)
+MOBIS,1109,full_range_power_law,exponential,1086.051448295552,5.162083530856431e-17,full_range_power_law,full_range_power_law favored (distinguishable)
+MOBIS,1109,full_range_power_law,lognormal,-7.403831851641693,0.0004270468572539,lognormal,lognormal favored (distinguishable)
+MOBIS,1109,full_range_power_law,stretched_exponential,1.632091449067361,0.381699396890477,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+MOBIS,1109,full_range_power_law,truncated_power_law,-0.1999656678367838,0.5271247201072581,truncated_power_law,inconclusive (truncated_power_law numerically favored)
+RTFMP,231,full_range_power_law,exponential,1011.877115658996,1.5993005557278302e-24,full_range_power_law,full_range_power_law favored (distinguishable)
+RTFMP,231,full_range_power_law,lognormal,-1.034420561504417,0.2648184351356527,lognormal,inconclusive (lognormal numerically favored)
+RTFMP,231,full_range_power_law,stretched_exponential,4.357959898657006,0.027369453193823,full_range_power_law,full_range_power_law favored (distinguishable)
+RTFMP,231,full_range_power_law,truncated_power_law,-0.0981522202394595,0.6577204781297769,truncated_power_law,inconclusive (truncated_power_law numerically favored)
+SEPSIS,846,full_range_power_law,exponential,,,,
+SEPSIS,846,full_range_power_law,lognormal,,,,
+SEPSIS,846,full_range_power_law,stretched_exponential,,,,
+SEPSIS,846,full_range_power_law,truncated_power_law,,,,

@@ -1,0 +1,5 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model,interpretation
+MOBIS,399,doubly_bounded_power_law,exponential,227.5907276870152,6.367380108169444e-10,doubly_bounded_power_law,doubly_bounded_power_law favored (distinguishable)
+MOBIS,399,doubly_bounded_power_law,lognormal,-0.15597086754656253,0.29737628577473885,lognormal,inconclusive (lognormal numerically favored)
+MOBIS,399,doubly_bounded_power_law,stretched_exponential,0.8172897887227126,0.5405247614213886,doubly_bounded_power_law,inconclusive (doubly_bounded_power_law numerically favored)
+MOBIS,399,doubly_bounded_power_law,truncated_power_law,-0.017562304297139786,0.8513347891987451,truncated_power_law,inconclusive (truncated_power_law numerically favored)

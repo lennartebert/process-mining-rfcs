@@ -28,7 +28,12 @@ from utils.io import (
     save_attachments,
     trace_completion_data,
 )
-from utils.io.attachments import NGRAM_CONCEPTS
+from utils.io.attachments import (
+    END,
+    NGRAM_CONCEPTS,
+    START,
+    warn_if_start_end_in_activity_set,
+)
 
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
@@ -52,6 +57,15 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         default=["variants"],
         choices=["variants", "activities", "dfrs", *NGRAM_CONCEPTS],
         help="Concepts for attachment extraction (n1..n10 = length-k activity n-grams)",
+    )
+    parser.add_argument(
+        "--add-start-end",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            f"Wrap traces with {START}/{END} before extracting n-grams with n>=2 "
+            "(default: True). n1, variants, activities, and dfrs are unchanged."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -105,8 +119,15 @@ def main(argv: List[str] | None = None) -> None:
         trace_data = trace_completion_data(event_log)
         # Sort once and reuse for all requested concepts to avoid repeated log traversal.
         trace_data.sort(key=lambda item: item["completion_timestamp"])
+        if args.add_start_end and any(
+            concept in NGRAM_CONCEPTS and concept != "n1"
+            for concept, _ in pending_outputs
+        ):
+            warn_if_start_end_in_activity_set(trace_data, dataset_name=dataset_name)
         for concept, attachment_path in pending_outputs:
-            attachments_df = extract_attachments_from_trace_data(trace_data, concept)
+            attachments_df = extract_attachments_from_trace_data(
+                trace_data, concept, add_start_end=args.add_start_end
+            )
             save_attachments(attachments_df, attachment_path)
             unique_nodes = attachments_df["node_id"].nunique() if not attachments_df.empty else 0
             print(

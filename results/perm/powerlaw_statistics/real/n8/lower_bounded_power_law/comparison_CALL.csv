@@ -1,0 +1,5 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model,interpretation
+CALL,674,lower_bounded_power_law,exponential,1512.0379967436106,7.128540624461779e-42,lower_bounded_power_law,lower_bounded_power_law favored (distinguishable)
+CALL,674,lower_bounded_power_law,lognormal,-1.7882600395496535,0.1720191610251648,lognormal,inconclusive (lognormal numerically favored)
+CALL,674,lower_bounded_power_law,stretched_exponential,-0.51688422743681,0.8559298659468954,stretched_exponential,inconclusive (stretched_exponential numerically favored)
+CALL,674,lower_bounded_power_law,truncated_power_law,-5.621686181539366,0.0007990783534487234,truncated_power_law,truncated_power_law favored (distinguishable)

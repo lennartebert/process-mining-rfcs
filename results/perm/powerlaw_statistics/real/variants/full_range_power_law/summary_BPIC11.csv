@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,xmin,xmax,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,fit_valid,classification,best_other_distribution,alpha,KS_D,gof_p,n_success,n_failed,gof_kind
+BPIC11,results/attachments/variants/BPIC11/attachments.csv.gz,1143,981,943,0.9612640163098879,1.0,,981,1.0,1.0,1.6127838567197355,False,full range power law invalid (alpha_at_parameter_boundary); fit findings suppressed,,,,,,,skipped_invalid_fit

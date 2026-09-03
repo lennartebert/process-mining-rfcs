@@ -1,0 +1,2 @@
+n_reps,n_ok,n_failed,reject_rate,reject_lo_2SE,reject_hi_2SE,mean_alpha,mean_xmin,types
+200,200,0,0.08,0.05757359312880715,0.14242640687119285,2.0396212813313497,1.135,100

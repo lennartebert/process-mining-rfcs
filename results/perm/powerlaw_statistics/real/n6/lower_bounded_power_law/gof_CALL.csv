@@ -1,0 +1,2 @@
+log_name,xmin,xmax,alpha,KS_D,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,gof_p,n_success,n_failed,alpha_at_boundary,fit_valid,gof_kind
+CALL,4,,1.5136348151467127,0.02787043670569933,640,0.2828104286345559,0.9916373759029996,3.7982016194169006,0.076,2500,0,False,True,refit_all_parameters

@@ -1,0 +1,2 @@
+log_name,xmin,xmax,alpha,KS_D,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,gof_p,n_success,n_failed,alpha_at_boundary,fit_valid,gof_kind
+SEPSIS,2,,2.8155502384415967,0.010239639875582629,878,0.14288039056143206,0.3667187687868222,1.4771212547196624,0.8088,2500,0,False,True,refit_all_parameters

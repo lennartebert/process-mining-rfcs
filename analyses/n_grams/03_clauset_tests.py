@@ -2,7 +2,7 @@
 
 Runs ``cli.clauset_power_law`` once per concept (variants, n1..n10 by default),
 reading attachments from ``results/attachments/`` and writing under
-``results/n_grams/<concept>/<model>/``.
+``results/n_grams/real/<concept>/<model>/``.
 
 Model policy:
 - ``variants``: full_range, lower_bounded, and doubly_bounded
@@ -21,7 +21,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from cli import clauset_power_law
-from utils.constants import ATTACHMENTS_DIR, N_GRAMS_DIR
+from utils.constants import ATTACHMENTS_DIR, N_GRAMS_REAL_DIR
 from utils.io.attachments import NGRAM_CONCEPTS
 from utils.powerlaw import DISTRIBUTION_NAMES, LOWER_BOUNDED_POWER_LAW
 
@@ -56,7 +56,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=None,
-        help=f"N-grams results root for Clauset outputs (default: {N_GRAMS_DIR})",
+        help=f"N-grams results root for Clauset outputs (default: {N_GRAMS_REAL_DIR})",
     )
     parser.add_argument(
         "--n-bootstraps",
@@ -90,7 +90,7 @@ def main(argv: List[str] | None = None) -> None:
     attachments_root = (
         Path(args.attachments_dir) if args.attachments_dir else ATTACHMENTS_DIR
     )
-    output_root = Path(args.output_dir) if args.output_dir else N_GRAMS_DIR
+    output_root = Path(args.output_dir) if args.output_dir else N_GRAMS_REAL_DIR
 
     for concept in args.concepts:
         models = models_for_concept(concept)

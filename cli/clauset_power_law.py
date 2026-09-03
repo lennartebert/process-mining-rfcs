@@ -65,7 +65,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         type=str,
         required=True,
         help="Subfolder name under the output root for this run "
-        "(e.g. n1 -> results/n_grams/n1/<model>/)",
+        "(e.g. n1 -> results/n_grams/real/n1/<model>/)",
     )
     parser.add_argument(
         "--output-dir",

@@ -1,0 +1,5 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model,interpretation
+BPIC20_tpd,1478,full_range_power_law,exponential,1681.52846068599,7.335988704870806e-11,full_range_power_law,full_range_power_law favored (distinguishable)
+BPIC20_tpd,1478,full_range_power_law,lognormal,-26.043629672021915,0.0008083258664289594,lognormal,lognormal favored (distinguishable)
+BPIC20_tpd,1478,full_range_power_law,stretched_exponential,2.9854665362560198,0.1831116974762369,full_range_power_law,inconclusive (full_range_power_law numerically favored)
+BPIC20_tpd,1478,full_range_power_law,truncated_power_law,3.821186388419662e-06,0.9977942635643728,full_range_power_law,inconclusive (full_range_power_law numerically favored)

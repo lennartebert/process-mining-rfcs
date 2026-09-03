@@ -45,6 +45,15 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         choices=CONCEPT_CHOICES,
         help="Concepts to extract (default: n1..n10 + variants)",
     )
+    parser.add_argument(
+        "--add-start-end",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Wrap traces with START/END before extracting n-grams with n>=2 "
+            "(default: True). n1 and variants are unchanged."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -60,6 +69,7 @@ def main(argv: List[str] | None = None) -> None:
     ]
     if args.force:
         forward.append("--force")
+    forward.append("--add-start-end" if args.add_start_end else "--no-add-start-end")
     print(f"$ python cli/extract_attachments.py {' '.join(forward)}")
     extract_attachments.main(forward)
 

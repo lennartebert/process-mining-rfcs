@@ -13,7 +13,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from cli import log_info
 from cli.log_info import ALL_STATS, DEFAULT_STATS
-from utils.constants import N_GRAMS_DIR
+from utils.constants import N_GRAMS_REAL_DIR
 
 # n_grams describe always includes trace-length stats by default.
 N_GRAMS_DEFAULT_STATS: List[str] = [
@@ -42,8 +42,8 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=str(N_GRAMS_DIR),
-        help=f"Output directory for log_info.csv/.tex (default: {N_GRAMS_DIR})",
+        default=str(N_GRAMS_REAL_DIR),
+        help=f"Output directory for log_info.csv/.tex (default: {N_GRAMS_REAL_DIR})",
     )
     parser.add_argument(
         "--force-recalculate",

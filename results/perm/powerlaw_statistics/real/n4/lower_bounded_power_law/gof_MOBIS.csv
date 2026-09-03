@@ -1,0 +1,2 @@
+log_name,xmin,xmax,alpha,KS_D,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,gof_p,n_success,n_failed,alpha_at_boundary,fit_valid,gof_kind
+MOBIS,1,,1.3751516994559787,0.07051988292246691,494,1.0,1.0,3.629307640073749,0.0,2500,0,False,True,refit_all_parameters

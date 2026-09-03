@@ -7,6 +7,8 @@ RESULTS_DIR = Path("results")
 ATTACHMENTS_DIR = RESULTS_DIR / "attachments"
 RFCS_DIR = RESULTS_DIR / "rfcs"
 N_GRAMS_DIR = RESULTS_DIR / "n_grams"
+N_GRAMS_REAL_DIR = N_GRAMS_DIR / "real"
+N_GRAMS_SIM_DIR = N_GRAMS_DIR / "sim"
 PREFERENTIAL_ATTACHMENT_DIR = RESULTS_DIR / "preferential_attachment"
 CASE_ATTRIBUTES_DIR = RESULTS_DIR / "case_attributes"
 # log_info.csv / .tex live directly under rfcs/ (not a nested log_info/ folder).
@@ -49,5 +51,7 @@ ALL_REAL_LOG_DATASETS = [
     "SEPSIS",
 ]
 ALL_REAL_LOGS_TOKEN = "ALL_REAL_LOGS"
+ALL_SIM_LOG_DATASETS = [f"{name}_sim" for name in ALL_REAL_LOG_DATASETS]
+ALL_SIM_LOGS_TOKEN = "ALL_SIM_LOGS"
 
 

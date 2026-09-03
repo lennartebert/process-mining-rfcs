@@ -26,7 +26,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from cli.log_info import IDENTITY_COLUMNS, _write_latex_from_csv
-from utils.constants import N_GRAMS_DIR
+from utils.constants import N_GRAMS_REAL_DIR
 from utils.io.attachments import NGRAM_CONCEPTS
 from utils.powerlaw import DISTRIBUTION_NAMES
 
@@ -162,8 +162,8 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=str(N_GRAMS_DIR),
-        help=f"N-grams results root containing shards (default: {N_GRAMS_DIR})",
+        default=str(N_GRAMS_REAL_DIR),
+        help=f"N-grams results root containing shards (default: {N_GRAMS_REAL_DIR})",
     )
     parser.add_argument(
         "--concepts",

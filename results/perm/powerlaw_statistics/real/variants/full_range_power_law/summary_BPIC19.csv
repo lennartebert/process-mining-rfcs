@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,xmin,xmax,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,fit_valid,classification,best_other_distribution,alpha,KS_D,gof_p,n_success,n_failed,gof_kind
+BPIC19,results/attachments/variants/BPIC19/attachments.csv.gz,251734,11973,9030,0.7541969431220246,1.0,,11973,1.0,1.0,4.701447091039148,True,(1) >= 30 fitted types; (2) full range power law not plausible (p<0.1); (3) alternative preferred,lognormal,2.2141494992706683,0.07928918680156016,0.0,2500,0,refit_all_parameters

@@ -1,0 +1,5 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model,interpretation
+RTFMP,231,full_range_power_law,exponential,1011.877115658996,1.5993005557278302e-24,full_range_power_law,full_range_power_law favored (distinguishable)
+RTFMP,231,full_range_power_law,lognormal,-1.034420561504417,0.26481843513565273,lognormal,inconclusive (lognormal numerically favored)
+RTFMP,231,full_range_power_law,stretched_exponential,4.357959898657006,0.027369453193823078,full_range_power_law,full_range_power_law favored (distinguishable)
+RTFMP,231,full_range_power_law,truncated_power_law,-0.09815222023945958,0.6577204781297769,truncated_power_law,inconclusive (truncated_power_law numerically favored)

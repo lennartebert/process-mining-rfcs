@@ -1,0 +1,2 @@
+log_name,xmin,xmax,alpha,KS_D,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,gof_p,n_success,n_failed,alpha_at_boundary,fit_valid,gof_kind
+ACCRE,3,,1.6467065064686452,0.07635881905078878,62,0.6326530612244898,0.9812206572769953,2.1094660499520925,0.2216,2500,0,False,True,refit_all_parameters

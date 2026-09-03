@@ -1,0 +1,2 @@
+log_name,xmin,xmax,alpha,KS_D,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,gof_p,n_success,n_failed,alpha_at_boundary,fit_valid,gof_kind
+BPIC20_dd,2,,1.5559373506810201,0.061145811184897425,108,0.4576271186440678,0.988849202892238,3.3634239329171765,0.1392,2500,0,False,True,refit_all_parameters

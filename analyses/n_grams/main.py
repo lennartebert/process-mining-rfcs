@@ -25,6 +25,10 @@ if str(REPO_ROOT) not in sys.path:
 from utils.constants import (
     ALL_REAL_LOG_DATASETS,
     ALL_REAL_LOGS_TOKEN,
+    ALL_SIM_LOG_DATASETS,
+    ALL_SIM_LOGS_TOKEN,
+    N_GRAMS_REAL_DIR,
+    N_GRAMS_SIM_DIR,
     TEST_ATTACHMENTS_DIR,
     TEST_DATASET,
     TEST_N_GRAMS_DIR,
@@ -62,6 +66,8 @@ def _resolve_datasets(raw: Sequence[str] | None) -> List[str]:
         )
     if len(raw) == 1 and raw[0] == ALL_REAL_LOGS_TOKEN:
         return list(ALL_REAL_LOG_DATASETS)
+    if len(raw) == 1 and raw[0] == ALL_SIM_LOGS_TOKEN:
+        return list(ALL_SIM_LOG_DATASETS)
     return list(raw)
 
 
@@ -102,12 +108,23 @@ def _selected_steps(args: argparse.Namespace) -> list[tuple[str, str]]:
     return selected
 
 
-def _results_dir(args: argparse.Namespace) -> str | None:
+def _results_dir(
+    args: argparse.Namespace, datasets: List[str] | None
+) -> str | None:
     if args.output_dir:
         return args.output_dir
     if args.test:
         return str(TEST_N_GRAMS_DIR)
-    return None
+    if datasets:
+        sim_flags = [name.endswith("_sim") for name in datasets]
+        if any(sim_flags) and not all(sim_flags):
+            raise SystemExit(
+                "Error: mixed real and *_sim datasets require --output-dir "
+                "(shared CSVs must not mix sources)."
+            )
+        if all(sim_flags):
+            return str(N_GRAMS_SIM_DIR)
+    return str(N_GRAMS_REAL_DIR)
 
 
 def _argv_for_step(
@@ -120,6 +137,7 @@ def _argv_for_step(
     n_bootstraps: int | None,
     random_seed: int | None,
     results_dir: str | None,
+    add_start_end: bool,
     passthrough: List[str],
 ) -> List[str]:
     """Build argv for one step."""
@@ -151,8 +169,10 @@ def _argv_for_step(
     if step_id in {"02", "03"}:
         argv.extend(["--concepts", *concepts])
 
-    if step_id == "02" and test_mode:
-        argv.extend(["--output-dir", str(TEST_ATTACHMENTS_DIR)])
+    if step_id == "02":
+        argv.append("--add-start-end" if add_start_end else "--no-add-start-end")
+        if test_mode:
+            argv.extend(["--output-dir", str(TEST_ATTACHMENTS_DIR)])
 
     if step_id in {"01", "03"} and results_dir:
         argv.extend(["--output-dir", results_dir])
@@ -190,7 +210,10 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--datasets",
         nargs="+",
         default=None,
-        help="Dataset names (ignored when --test is set; optional with --combine)",
+        help=(
+            "Dataset names, or ALL_REAL_LOGS / ALL_SIM_LOGS "
+            "(ignored when --test is set; optional with --combine)"
+        ),
     )
     parser.add_argument(
         "--concepts",
@@ -200,6 +223,15 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         help=(
             "Concepts for steps 02-05 (default: n1..n10 + variants; "
             f"with --test default: {', '.join(TEST_CONCEPTS)})"
+        ),
+    )
+    parser.add_argument(
+        "--add-start-end",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Step 02: wrap traces with START/END before extracting n-grams "
+            "with n>=2 (default: True). n1 and variants are unchanged."
         ),
     )
     parser.add_argument(
@@ -252,7 +284,11 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=None,
-        help="N-grams results root (default: results/n_grams; with --test: results/test/n_grams)",
+        help=(
+            "N-grams results root (default: results/n_grams/real, "
+            "or results/n_grams/sim for *_sim logs; "
+            "with --test: results/test/n_grams)"
+        ),
     )
     parser.add_argument(
         "--n-bootstraps",
@@ -296,7 +332,7 @@ def main(argv: List[str] | None = None) -> None:
     else:
         concepts = list(DEFAULT_CONCEPTS)
 
-    results_dir = _results_dir(args)
+    results_dir = _results_dir(args, datasets)
     selected = _selected_steps(args)
 
     for step_id, filename in selected:
@@ -310,6 +346,7 @@ def main(argv: List[str] | None = None) -> None:
             n_bootstraps=args.n_bootstraps,
             random_seed=args.random_seed,
             results_dir=results_dir,
+            add_start_end=args.add_start_end,
             passthrough=args.passthrough,
         )
         print(f"$ python analyses/n_grams/{filename} {' '.join(step_argv)}")

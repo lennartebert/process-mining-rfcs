@@ -1,0 +1,2 @@
+log_name,xmin,xmax,alpha,KS_D,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,gof_p,n_success,n_failed,alpha_at_boundary,fit_valid,gof_kind
+RTFMP,2,,1.3921034723876602,0.028856895304651853,257,0.7385057471264368,0.999778642666018,4.5998503350748985,0.6416,2500,0,False,True,refit_all_parameters

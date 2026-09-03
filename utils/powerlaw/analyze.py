@@ -52,6 +52,29 @@ _ALTERNATIVES: list[tuple[str, bool]] = [ # (model name, nested)
     ("stretched_exponential", False),
     ("truncated_power_law", True),
 ]
+# Preference (Other preferred / PL best) ignores nested truncated power law.
+CLASSIFICATION_ALTERNATIVES: tuple[str, ...] = (
+    "exponential",
+    "lognormal",
+    "stretched_exponential",
+)
+
+# Compact five-way labels used by compose tables (letter codes A–E).
+CLASSIFICATION_CODES: tuple[str, ...] = ("A", "B", "C", "D", "E")
+CLASSIFICATION_LABELS: dict[str, str] = {
+    "A": "Insufficient support",
+    "B": "PL not plausible",
+    "C": "PL plausible, alternative preferred",
+    "D": "PL plausible, PL best",
+    "E": "PL plausible, alternatives inconclusive",
+}
+CLASSIFICATION_CELL_COLORS: dict[str, str] = {
+    "A": "FFFFFF",
+    "B": "D55E00",
+    "C": "E69F00",
+    "D": "009E73",
+    "E": "56B4E9",
+}
 
 # powerlaw default alpha upper bound is 3; raise so discrete MLE is not pinned.
 _ALPHA_PARAMETER_RANGE: list[float] = [0.0, 4.0]
@@ -577,6 +600,103 @@ def _optional_int(value: Any) -> int | pd.NA:
     return int(value)
 
 
+def _finite_preference_rows(comparison_df: pd.DataFrame | None) -> pd.DataFrame:
+    """Finite (R, p) rows for alternatives that count in preference."""
+    if comparison_df is None or comparison_df.empty:
+        return pd.DataFrame(columns=["model_2", "R", "p"])
+    rows = comparison_df.copy()
+    r = pd.to_numeric(rows["R"], errors="coerce")
+    p = pd.to_numeric(rows["p"], errors="coerce")
+    models = rows["model_2"].astype(str)
+    ok = (
+        r.notna()
+        & p.notna()
+        & np.isfinite(r)
+        & np.isfinite(p)
+        & models.isin(CLASSIFICATION_ALTERNATIVES)
+    )
+    out = rows.loc[ok].copy()
+    out["R"] = r.loc[ok]
+    out["p"] = p.loc[ok]
+    return out
+
+
+def llr_preference(
+    comparison_df: pd.DataFrame | None,
+    *,
+    significance_level: float = DEFAULT_SIGNIFICANCE_LEVEL,
+) -> str:
+    """Step-3 label: ``alternative preferred``, ``PL preferred``, or ``alternatives inconclusive``.
+
+    Truncated power law is ignored. Alternative preferred if any counted
+    alternative has R<0 and p<significance. PL preferred only if every counted
+    alternative has R>0 and p<significance.
+    """
+    valid = _finite_preference_rows(comparison_df)
+    if valid.empty:
+        return "alternatives inconclusive"
+    if ((valid["R"] < 0) & (valid["p"] < significance_level)).any():
+        return "alternative preferred"
+    by_model: dict[str, tuple[float, float]] = {}
+    for _, row in valid.iterrows():
+        by_model[str(row["model_2"])] = (float(row["R"]), float(row["p"]))
+    if all(
+        name in by_model
+        and by_model[name][0] > 0
+        and by_model[name][1] < significance_level
+        for name in CLASSIFICATION_ALTERNATIVES
+    ):
+        return "PL preferred"
+    return "alternatives inconclusive"
+
+
+def select_best_other_distribution(
+    comparison_df: pd.DataFrame | None,
+) -> str | None:
+    """Most negative R among counted alternatives (excludes truncated power law)."""
+    valid = _finite_preference_rows(comparison_df)
+    if valid.empty:
+        return None
+    return str(valid.loc[valid["R"].astype(float).idxmin(), "model_2"])
+
+
+def compact_classification(
+    *,
+    n_fitted_types: int,
+    gof_p: float,
+    comparison_df: pd.DataFrame | None,
+    minimum_fitted_types: int = DEFAULT_MINIMUM_FITTED_TYPES,
+    significance_level: float = DEFAULT_SIGNIFICANCE_LEVEL,
+    gof_p_threshold: float | None = None,
+    comparison_p_threshold: float | None = None,
+    fit_valid: bool = True,
+) -> str:
+    """Return an A–E code from ``CLASSIFICATION_LABELS``.
+
+    ``significance_level`` is used for both GOF and LLR when the dedicated
+    thresholds are omitted (existing callers). Compose may pass
+    ``gof_p_threshold`` and ``comparison_p_threshold`` independently.
+    """
+    gof_thr = significance_level if gof_p_threshold is None else gof_p_threshold
+    cmp_thr = (
+        significance_level if comparison_p_threshold is None else comparison_p_threshold
+    )
+    if not fit_valid:
+        return "A"
+    if n_fitted_types < minimum_fitted_types:
+        return "A"
+    if not np.isfinite(gof_p):
+        return "A"
+    if gof_p < gof_thr:
+        return "B"
+    preference = llr_preference(comparison_df, significance_level=cmp_thr)
+    if preference == "alternative preferred":
+        return "C"
+    if preference == "PL preferred":
+        return "D"
+    return "E"
+
+
 def _classify(
     *,
     n_fitted_types: int,
@@ -598,18 +718,9 @@ def _classify(
         if n_fitted_types >= minimum_fitted_types
         else f"(1) < {minimum_fitted_types} fitted types"
     )
-
-    r = pd.to_numeric(comparison_df["R"], errors="coerce")
-    p = pd.to_numeric(comparison_df["p"], errors="coerce")
-    valid = comparison_df.loc[r.notna() & p.notna() & np.isfinite(r) & np.isfinite(p)]
-    if valid.empty:
-        preference = "inconclusive"
-    elif ((valid["R"] < 0) & (valid["p"] < significance_level)).any():
-        preference = "alternatives preferred"
-    elif ((valid["R"] > 0) & (valid["p"] < significance_level)).any():
-        preference = "preferred over alternatives"
-    else:
-        preference = "inconclusive"
+    preference = llr_preference(
+        comparison_df, significance_level=significance_level
+    )
 
     if not np.isfinite(gof_p):
         return f"{fitted_step}; (2) {model_label} GOF unavailable; (3) {preference}"
@@ -681,16 +792,10 @@ def decide_and_record(
         pathology_flags=list(fit.get("pathology_flags") or []),
     )
 
-    # Strongest alternative under Vuong LLR: most negative R among finite (R, p).
+    # Strongest counted alternative under Vuong R: most negative R (TPL excluded).
     best_other: str | None = None
-    if fit_valid and not comparison_df.empty:
-        r = pd.to_numeric(comparison_df["R"], errors="coerce")
-        p = pd.to_numeric(comparison_df["p"], errors="coerce")
-        valid = comparison_df.loc[
-            r.notna() & p.notna() & np.isfinite(r) & np.isfinite(p)
-        ]
-        if not valid.empty:
-            best_other = str(valid.loc[valid["R"].astype(float).idxmin(), "model_2"])
+    if fit_valid:
+        best_other = select_best_other_distribution(comparison_df)
 
     # Detailed GOF metrics row (one per model run).
     gof_row: dict[str, Any] = {
@@ -842,6 +947,7 @@ def run_clauset_pipeline(
     random_seed: int = 42,
     significance_level: float = DEFAULT_SIGNIFICANCE_LEVEL,
     minimum_fitted_types: int = DEFAULT_MINIMUM_FITTED_TYPES,
+    compare_alternatives: bool = True,
     doubly_bounded_exclude_head_variants: Sequence[int] = (
         DEFAULT_DOUBLY_BOUNDED_EXCLUDE_HEAD_VARIANTS
     ),
@@ -852,6 +958,7 @@ def run_clauset_pipeline(
 
     ``doubly_bounded_exclude_head_variants`` is only used for the
     doubly-bounded model (xmax candidates); other models ignore it.
+    Set ``compare_alternatives=False`` to skip Vuong/LLR comparisons (fit + GOF only).
     """
     if model not in DISTRIBUTION_NAMES:
         raise ValueError(
@@ -894,12 +1001,17 @@ def run_clauset_pipeline(
             random_seed=random_seed,
             doubly_bounded_exclude_head_variants=doubly_bounded_exclude_head_variants,
         )
-        comparison_df = compare_to_alternatives(
-            fit["fit"],
-            log_name=log_name,
-            model_1=model,
-            significance_level=significance_level,
-        )
+        if compare_alternatives:
+            comparison_df = compare_to_alternatives(
+                fit["fit"],
+                log_name=log_name,
+                model_1=model,
+                significance_level=significance_level,
+            )
+        else:
+            comparison_df = empty_clauset_result(
+                log_name=log_name, input_path=input_path, model=model, classification=""
+            )["comparison_df"]
 
     return decide_and_record(
         log_name=log_name,

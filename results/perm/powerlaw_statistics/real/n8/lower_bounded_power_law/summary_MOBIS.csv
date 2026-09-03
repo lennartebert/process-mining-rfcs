@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,xmin,xmax,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,fit_valid,classification,best_other_distribution,alpha,KS_D,gof_p,n_success,n_failed,gof_kind
+MOBIS,results/attachments/n8/MOBIS/attachments.csv.gz,53194,1431,579,0.40461215932914046,1.0,,1431,1.0,1.0,3.281260687055013,True,(1) >= 30 fitted types; (2) lower bounded power law not plausible (p<0.1); (3) alternative preferred,stretched_exponential,1.498821295621597,0.04672533513444077,0.0,2500,0,refit_all_parameters
