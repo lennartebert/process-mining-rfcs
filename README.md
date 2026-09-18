@@ -60,8 +60,6 @@ jupyter notebook analyses/rfcs/analyze_powerlaw_single_log.ipynb
 Folder: [`analyses/powerlaw_statistics/`](analyses/powerlaw_statistics/).
 Details: [`analyses/powerlaw_statistics/README.md`](analyses/powerlaw_statistics/README.md).
 
-From Activities to Trace Variants: Testing Power-Law Compatibility Across
-Levels of Behavioral Abstraction (submitted).
 
 ```bash
 python analyses/powerlaw_statistics/main.py --datasets TEST_BPIC12
