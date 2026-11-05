@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 from typing import Any, List
 
@@ -28,6 +29,7 @@ from utils.powerlaw import (
 from utils.constants import RESULTS_DIR
 from utils.io import load_attachments, parse_dataset_inputs
 from utils.rfc import extract_frequency_counts
+from utils.timing import format_duration, timing_print
 
 
 def _classify_dataset_error(exc: Exception) -> str:
@@ -86,6 +88,15 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         help="Random seed for bootstrap resampling (default: 42)",
     )
     parser.add_argument(
+        "--xmin",
+        type=int,
+        default=None,
+        help=(
+            "Lock xmin for empirical fit and bootstrap refits "
+            "(default: estimate / model policy)"
+        ),
+    )
+    parser.add_argument(
         "--minimum-fitted-types",
         type=int,
         default=DEFAULT_MINIMUM_FITTED_TYPES,
@@ -131,6 +142,7 @@ def analyze_one_dataset(
     minimum_fitted_types: int,
     significance_level: float,
     models: list[str] | tuple[str, ...],
+    fixed_xmin: int | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Run one Clauset pipeline call per selected model."""
     attachments_df = load_attachments(attachments_path)
@@ -147,6 +159,7 @@ def analyze_one_dataset(
             random_seed=random_seed,
             minimum_fitted_types=minimum_fitted_types,
             significance_level=significance_level,
+            fixed_xmin=fixed_xmin,
         )
     return results
 
@@ -195,6 +208,8 @@ def main(argv: List[str] | None = None) -> None:
         f"Bootstrap settings: n_bootstraps={args.n_bootstraps}, "
         f"random_seed={args.random_seed}"
     )
+    if args.xmin is not None:
+        print(f"Fixed xmin: {args.xmin}")
     print(f"Models: {', '.join(selected_models)}")
     print(
         f"Classification thresholds: significance_level={args.significance_level}, "
@@ -203,8 +218,10 @@ def main(argv: List[str] | None = None) -> None:
     if args.parallel:
         print("Parallel mode: writing per-log CSV shards")
 
+    batch_t0 = time.perf_counter()
     for dataset_name, attachments_path in input_pairs:
         print(f"\nProcessing {dataset_name}...")
+        dataset_t0 = time.perf_counter()
         if not attachments_path.exists():
             print(f"  Warning: attachments file not found: {attachments_path}")
             dataset_results = _error_results(
@@ -223,6 +240,7 @@ def main(argv: List[str] | None = None) -> None:
                     minimum_fitted_types=args.minimum_fitted_types,
                     significance_level=args.significance_level,
                     models=selected_models,
+                    fixed_xmin=args.xmin,
                 )
             except Exception as exc:  # noqa: BLE001 - keep batch resilient
                 print(f"  Warning: failed on {dataset_name}: {exc}")
@@ -280,6 +298,11 @@ def main(argv: List[str] | None = None) -> None:
             )
             print(f"  Checkpointed under: {analysis_dir}")
 
+        timing_print(
+            f"analysis={args.analysis_name} dataset={dataset_name} "
+            f"elapsed={format_duration(time.perf_counter() - dataset_t0)}"
+        )
+
     if args.parallel:
         if not any_success:
             print("Error: no datasets processed successfully")
@@ -294,6 +317,12 @@ def main(argv: List[str] | None = None) -> None:
         print(f"\nAll statistical-test outputs saved to: {analysis_dir}")
         for name in selected_models:
             print(f"  {analysis_dir / name}/{{gof,comparison,summary}}.csv")
+
+    timing_print(
+        f"analysis={args.analysis_name} batch "
+        f"elapsed={format_duration(time.perf_counter() - batch_t0)} "
+        f"({len(input_pairs)} dataset(s))"
+    )
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ REQUIRED_ATTACHMENT_COLUMNS = ["attachment_time", "attachment_index", "node_id"]
 # Change these if they collide with real activity names in a log.
 START = "START"
 END = "END"
-NGRAM_CONCEPTS = tuple(f"n{i}" for i in range(1, 11))
+NGRAM_CONCEPTS = tuple(f"n{i}" for i in range(1, 21))
 
 
 def parse_dataset_input(raw_value: str) -> Tuple[str, Path]:
@@ -143,7 +143,7 @@ def _ngram_nodes(
     - n1 never includes START/END.
     - If n >= |work|, emit the entire work sequence as one node (no padding).
     - If n < |work|, emit sliding windows of length n.
-    - n1 node ids are bare activity strings; n2..n10 use str(tuple(...)).
+    - n1 node ids are bare activity strings; n2..n20 use str(tuple(...)).
     """
     work = _extended_trace(seq, n, add_start_end)
     if n == 1:

@@ -8,7 +8,12 @@ ATTACHMENTS_DIR = RESULTS_DIR / "attachments"
 RFCS_DIR = RESULTS_DIR / "rfcs"
 POWERLAW_STATISTICS_DIR = RESULTS_DIR / "powerlaw_statistics"
 POWERLAW_STATISTICS_REAL_DIR = POWERLAW_STATISTICS_DIR / "real"
+# Model / monkey synthetics (O2C_S, MONKEY_*, …).
 POWERLAW_STATISTICS_SIM_DIR = POWERLAW_STATISTICS_DIR / "sim"
+# First-order DFG replays of real logs (*_sim).
+POWERLAW_STATISTICS_SIM_FROM_REAL_DFGS_DIR = (
+    POWERLAW_STATISTICS_DIR / "sim_from_real_dfgs"
+)
 PREFERENTIAL_ATTACHMENT_DIR = RESULTS_DIR / "preferential_attachment"
 CASE_ATTRIBUTES_DIR = RESULTS_DIR / "case_attributes"
 # log_info.csv / .tex live directly under rfcs/ (not a nested log_info/ folder).

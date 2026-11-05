@@ -288,14 +288,19 @@ def _select_xmax_by_min_ks(
 
 
 def _fit_doubly_bounded_candidates(
-    data: np.ndarray, doubly_bounded_exclude_head_variants: Sequence[int]
+    data: np.ndarray,
+    doubly_bounded_exclude_head_variants: Sequence[int],
+    *,
+    fixed_xmin: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Fit all xmax candidates (KS only). xmin free, xmax fixed per candidate."""
+    """Fit all xmax candidates (KS only). xmin free unless ``fixed_xmin`` is set."""
     rows: list[dict[str, Any]] = []
     for excl_k, xmax, actual_excl in _xmax_candidates(data, doubly_bounded_exclude_head_variants):
         try:
-            # xmin free (None); xmax fixed at this candidate
-            fit_result = _powerlaw_fit_with_stats(data, xmin=None, xmax=xmax)
+            # xmin free (None) or locked; xmax fixed at this candidate
+            fit_result = _powerlaw_fit_with_stats(
+                data, xmin=fixed_xmin, xmax=xmax
+            )
             rows.append(
                 {
                     **fit_result,
@@ -315,20 +320,27 @@ def _powerlaw_fit_with_stats_for_model(
     model: str,
     *,
     doubly_bounded_exclude_head_variants: Sequence[int],
+    fixed_xmin: int | None = None,
 ) -> dict[str, Any] | None:
     """Dispatch cutoffs for ``model``, then ``_powerlaw_fit_with_stats``.
 
     Returns None if doubly-bounded has no usable xmax candidate.
+    When ``fixed_xmin`` is set, that integer is locked for every model.
     """
     if model == FULL_RANGE_POWER_LAW:
-        # xmin fixed at 1; xmax none (unbounded above)
-        return _powerlaw_fit_with_stats(data, xmin=1, xmax=None)
+        # xmin fixed at 1 (or ``fixed_xmin``); xmax none (unbounded above)
+        xmin = 1 if fixed_xmin is None else int(fixed_xmin)
+        return _powerlaw_fit_with_stats(data, xmin=xmin, xmax=None)
     if model == LOWER_BOUNDED_POWER_LAW:
-        # xmin free; xmax none
-        return _powerlaw_fit_with_stats(data, xmin=None, xmax=None)
+        # xmin free unless ``fixed_xmin``; xmax none
+        return _powerlaw_fit_with_stats(data, xmin=fixed_xmin, xmax=None)
     if model == DOUBLY_BOUNDED_POWER_LAW:
-        # xmin free; xmax chosen by min KS among doubly_bounded_exclude_head_variants
-        candidates = _fit_doubly_bounded_candidates(data, doubly_bounded_exclude_head_variants)
+        # xmin free unless ``fixed_xmin``; xmax chosen by min KS among candidates
+        candidates = _fit_doubly_bounded_candidates(
+            data,
+            doubly_bounded_exclude_head_variants,
+            fixed_xmin=fixed_xmin,
+        )
         selected = _select_xmax_by_min_ks(candidates)
         if selected is None:
             return None
@@ -372,11 +384,13 @@ def bootstrap_gof(
     n_bootstraps: int = 1000,
     random_seed: int = 42,
     doubly_bounded_exclude_head_variants: Sequence[int] = DEFAULT_DOUBLY_BOUNDED_EXCLUDE_HEAD_VARIANTS,
+    fixed_xmin: int | None = None,
 ) -> dict[str, Any]:
     """Clauset semiparametric GOF; does **not** re-fit the original sample.
 
     Free cutoffs are re-estimated on each synthetic replicate according to
-    ``model``; fixed cutoffs stay locked.
+    ``model``; fixed cutoffs stay locked. When ``fixed_xmin`` is set, xmin is
+    locked on every synthetic refit.
     """
     # Null hypothesis: use the already-fitted empirical parameters (no re-MLE here).
     empirical_xmin = float(empirical_fit["xmin"])
@@ -413,17 +427,19 @@ def bootstrap_gof(
 
     # Synthetic refits: which cutoffs are free vs fixed for this model?
     if model == FULL_RANGE_POWER_LAW:
-        # xmin fixed at 1; xmax none
-        synth_xmin: float | None = 1.0
+        # xmin fixed at 1 (or ``fixed_xmin``); xmax none
+        synth_xmin: float | None = (
+            1.0 if fixed_xmin is None else float(fixed_xmin)
+        )
         synth_xmax: float | None = None
         reselect_xmax = False
     elif model == LOWER_BOUNDED_POWER_LAW:
-        # xmin free; xmax none
-        synth_xmin = None
+        # xmin free unless ``fixed_xmin``; xmax none
+        synth_xmin = None if fixed_xmin is None else float(fixed_xmin)
         synth_xmax = None
         reselect_xmax = False
     elif model == DOUBLY_BOUNDED_POWER_LAW:
-        # xmin free; xmax re-selected via min-KS each replicate
+        # xmin free unless ``fixed_xmin``; xmax re-selected via min-KS each replicate
         if not np.isfinite(empirical_xmax):
             return _failed_gof(
                 n_bootstraps=n_bootstraps,
@@ -432,7 +448,7 @@ def bootstrap_gof(
                 alpha=empirical_alpha,
                 empirical_d=empirical_d,
             )
-        synth_xmin = None
+        synth_xmin = None if fixed_xmin is None else float(fixed_xmin)
         synth_xmax = None
         reselect_xmax = True
     else:
@@ -454,7 +470,11 @@ def bootstrap_gof(
             )
             if reselect_xmax:
                 # Doubly-bounded: re-select xmax from doubly_bounded_exclude_head_variants.
-                cands = _fit_doubly_bounded_candidates(synthetic, doubly_bounded_exclude_head_variants)
+                cands = _fit_doubly_bounded_candidates(
+                    synthetic,
+                    doubly_bounded_exclude_head_variants,
+                    fixed_xmin=fixed_xmin,
+                )
                 chosen = _select_xmax_by_min_ks(cands)
                 if chosen is None:
                     raise ValueError("no usable candidate in bootstrap")
@@ -951,6 +971,7 @@ def run_clauset_pipeline(
     doubly_bounded_exclude_head_variants: Sequence[int] = (
         DEFAULT_DOUBLY_BOUNDED_EXCLUDE_HEAD_VARIANTS
     ),
+    fixed_xmin: int | None = None,
 ) -> dict[str, Any]:
     """Run Clauset analysis for **one** power-law model.
 
@@ -959,6 +980,8 @@ def run_clauset_pipeline(
     ``doubly_bounded_exclude_head_variants`` is only used for the
     doubly-bounded model (xmax candidates); other models ignore it.
     Set ``compare_alternatives=False`` to skip Vuong/LLR comparisons (fit + GOF only).
+    When ``fixed_xmin`` is set, xmin is locked for the empirical fit and every
+    bootstrap synthetic refit.
     """
     if model not in DISTRIBUTION_NAMES:
         raise ValueError(
@@ -971,7 +994,10 @@ def run_clauset_pipeline(
 
     descriptive = _descriptive_stats(data)
     fit = _powerlaw_fit_with_stats_for_model(
-        data, model, doubly_bounded_exclude_head_variants=doubly_bounded_exclude_head_variants
+        data,
+        model,
+        doubly_bounded_exclude_head_variants=doubly_bounded_exclude_head_variants,
+        fixed_xmin=fixed_xmin,
     )
     if fit is None:
         return empty_clauset_result(
@@ -1000,6 +1026,7 @@ def run_clauset_pipeline(
             n_bootstraps=n_bootstraps,
             random_seed=random_seed,
             doubly_bounded_exclude_head_variants=doubly_bounded_exclude_head_variants,
+            fixed_xmin=fixed_xmin,
         )
         if compare_alternatives:
             comparison_df = compare_to_alternatives(

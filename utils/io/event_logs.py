@@ -28,14 +28,11 @@ def get_data_dictionary(
     if not allowed_types:
         return {}
 
-    filtered: dict[str, Any] = {
+    return {
         dataset_name: dataset_info
         for dataset_name, dataset_info in data_dictionary.items()
         if dataset_info.get("type") in allowed_types
     }
-    for dataset_info in filtered.values():
-        dataset_info.setdefault("activity_key", "concept:name")
-    return filtered
 
 
 def get_event_log_from_path(log_path: Path, *, timestamp_sort: bool = True) -> EventLog:

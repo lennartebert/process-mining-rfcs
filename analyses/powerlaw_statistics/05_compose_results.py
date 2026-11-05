@@ -10,7 +10,7 @@ land under ``<output-dir>/plots/<log>/`` (use ``--skip-plots`` to omit them).
 - per-log RFC / PDF / CCDF plots for variants (shared ``plots/``)
 - log x n fitted-types matrix (CSV)
 - log x n scaling matrix (CSV + LaTeX with legend)
-- per-scale PL outcome summary counts (CSV + LaTeX), stacked-area chart, and category bar chart (PDF)
+- per-scale PL outcome summary counts (CSV + LaTeX), stacked-area chart, and category bar chart (PDF + PNG)
 """
 
 from __future__ import annotations
@@ -323,7 +323,7 @@ def build_variant_power_law_table(
                 "Log": log_name,
                 "alpha": src.get("alpha"),
                 "x_min": src.get("xmin"),
-                "fitted types": src.get("n_fitted_types"),
+                "fitted types": _optional_int(src.get("n_fitted_types")),
                 "fitted type %": fitted_pct,
                 "GOF p": src.get("gof_p"),
                 "best alternative": best_other_str if best_other_str else pd.NA,
@@ -342,7 +342,10 @@ def build_variant_power_law_table(
                 ),
             }
         )
-    return pd.DataFrame(rows, columns=VARIANT_TABLE_COLUMNS)
+    table = pd.DataFrame(rows, columns=VARIANT_TABLE_COLUMNS)
+    # Keep whole counts as integers when some logs have no fit (empty cells).
+    table["fitted types"] = pd.to_numeric(table["fitted types"], errors="coerce").astype("Int64")
+    return table
 
 
 def classification_to_scaling_cell(classification: object) -> str:
@@ -417,7 +420,7 @@ def _yes_no(flag: bool | None) -> str:
 
 
 def abbreviate_alternative_model(name: object) -> str:
-    if name is None or (isinstance(name, float) and pd.isna(name)):
+    if name is None or pd.isna(name):
         return ""
     text = str(name).strip()
     if not text or text.lower() == "nan":
@@ -546,6 +549,21 @@ def build_pl_outcome_summary(scaling_df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["Scale", *PL_OUTCOME_COLUMNS])
 
 
+def _savefig_pdf_and_png(fig: Any, output_path: Path) -> None:
+    """Write ``output_path`` (typically ``.pdf``) and a sibling ``.png``."""
+    import matplotlib.pyplot as plt
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    print(f"Saved: {output_path}")
+    png_path = output_path.with_suffix(".png")
+    if png_path != output_path:
+        fig.savefig(png_path, dpi=300, bbox_inches="tight")
+        print(f"Saved: {png_path}")
+    plt.close(fig)
+
+
 def plot_pl_outcome_stacked_area(
     counts_df: pd.DataFrame,
     output_path: Path,
@@ -567,7 +585,6 @@ def plot_pl_outcome_stacked_area(
     ]
     total = float(np.max(np.sum(np.vstack(series), axis=0))) if series else 0.0
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(9, 5))
     stacks = ax.stackplot(
         x,
@@ -603,9 +620,7 @@ def plot_pl_outcome_stacked_area(
         frameon=False,
     )
     fig.tight_layout()
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved: {output_path}")
+    _savefig_pdf_and_png(fig, output_path)
 
 
 def plot_category_bar_chart(
@@ -632,7 +647,6 @@ def plot_category_bar_chart(
     nonzero = totals > 0
     percents[nonzero] = counts[nonzero] / totals[nonzero, None] * 100.0
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(9, 5))
     x = np.arange(len(labels), dtype=float)
     if len(x) > 1:
@@ -699,9 +713,7 @@ def plot_category_bar_chart(
         frameon=False,
     )
     fig.tight_layout()
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved: {output_path}")
+    _savefig_pdf_and_png(fig, output_path)
 
 
 def pl_outcome_summary_dataframe_to_latex(df: pd.DataFrame) -> str:
@@ -1102,7 +1114,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         nargs="+",
         default=DEFAULT_CONCEPTS,
         choices=CONCEPT_CHOICES,
-        help="Concepts to include in compose tables/plots (default: n1..n10 + variants)",
+        help="Concepts to include in compose tables/plots (default: n1..n20 + variants)",
     )
     parser.add_argument(
         "--output-dir",

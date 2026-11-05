@@ -1,11 +1,12 @@
 # Power-law statistics analysis
 
-Pipeline for describing logs, extracting variant + n-gram (n1..n10) attachments,
+Pipeline for describing logs, extracting variant + n-gram (n1..n20) attachments,
 running Clauset-style power-law tests, combining parallel shards, and composing
 summary tables/plots. Shared tools live under `cli/`.
 
 Describe / Clauset / compose outputs go under `results/powerlaw_statistics/real` for real
-logs and `results/powerlaw_statistics/sim` for `*_sim` logs. Attachments stay under
+logs, `results/powerlaw_statistics/sim_from_real_dfgs` for `*_sim` DFG replays, and
+`results/powerlaw_statistics/sim` for model/monkey synthetics. Attachments stay under
 `results/attachments/<concept>/<log>/`.
 
 ```bash
@@ -15,11 +16,19 @@ python analyses/powerlaw_statistics/main.py --datasets TEST_BPIC12
 # All real benchmark logs (writes results/powerlaw_statistics/real)
 python analyses/powerlaw_statistics/main.py --datasets ALL_REAL_LOGS
 
-# First-order DFG-simulated counterparts (writes results/powerlaw_statistics/sim)
-python analyses/powerlaw_statistics/06_generate_synthetic.py
+# First-order DFG-simulated counterparts (writes results/powerlaw_statistics/sim_from_real_dfgs)
+python analyses/powerlaw_statistics/06_generate_synthetic_from_real_logs.py
 python analyses/powerlaw_statistics/main.py --datasets ALL_SIM_LOGS
 
-# Restrict concepts (default: n1..n10 + variants)
+# Iid monkey-typing synthetic logs
+python analyses/powerlaw_statistics/07_generate_synthetic_monkey.py \
+  --n-activities 26 --n-traces 20000 --trace-length 20
+python analyses/powerlaw_statistics/07_generate_synthetic_monkey.py \
+  --n-activities 10 --n-traces 20000 --trace-length 20
+python analyses/powerlaw_statistics/07_generate_synthetic_monkey.py \
+  --n-activities 24 --n-traces 20000 --trace-length 40
+
+# Restrict concepts (default: n1..n20 + variants)
 python analyses/powerlaw_statistics/main.py --datasets TEST_BPIC12 --concepts n1 n2 variants
 
 # Quick smoke test (TEST_BPIC12; concepts n1, n2, variants; fewer bootstraps)
@@ -37,12 +46,14 @@ python analyses/powerlaw_statistics/main.py --datasets TEST_BPIC12 --only 05
 | 03 | `03_clauset_tests.py` | Clauset fits under `results/powerlaw_statistics/real/<concept>/<model>/` |
 | 04 | `04_combine_parallel.py` | Merge parallel `log_info` + Clauset shards (after `--parallel`) |
 | 05 | `05_compose_results.py` | Tables + plots under `results/powerlaw_statistics/real/` |
-| 06 | `06_generate_synthetic.py` | Standalone DFG simulator → `data/synthetic/<LOG>_sim/` (not in `main.py`) |
+| 06 | `06_generate_synthetic_from_real_logs.py` | Standalone DFG simulator from real logs → `data/synthetic/<LOG>_sim/` (not in `main.py`) |
+| 07 | `07_generate_synthetic_monkey.py` | Iid monkey-typing synthetic log → `data/synthetic/MONKEY_*/` (not in `main.py`) |
 
 `main.py` auto-routes the results root: `*_sim` / `ALL_SIM_LOGS` →
-`results/powerlaw_statistics/sim`, otherwise `results/powerlaw_statistics/real`. Mixed real+sim names
-require an explicit `--output-dir`. Step 06 is not part of the orchestrator;
-run it first, then pass `ALL_SIM_LOGS` (or `ACCRE_sim`, …) to `main.py`.
+`results/powerlaw_statistics/sim_from_real_dfgs`, otherwise `results/powerlaw_statistics/real`.
+Model/monkey logs need `--output-dir results/powerlaw_statistics/sim` (or Slurm `SOURCE=sim`).
+Mixed real+sim names require an explicit `--output-dir`. Step 06 is not part of the
+orchestrator; run it first, then pass `ALL_SIM_LOGS` (or `ACCRE_sim`, …) to `main.py`.
 
 Step 03 model policy: **variants** fit all three (`full_range`, `lower_bounded`, `doubly_bounded`); other n-grams fit **only** `lower_bounded_power_law`.
 
@@ -108,19 +119,20 @@ python analyses/powerlaw_statistics/main.py --test --parallel
 python analyses/powerlaw_statistics/main.py --combine --output-dir results/powerlaw_statistics/real
 ```
 
-Slurm (from repo root). Set `SOURCE=real` or `SOURCE=sim` in both scripts
-before submitting:
+Slurm (from repo root). Pass `SOURCE` as a positional arg (`real` default;
+also `sim` = model/monkey, `sim_from_real_dfgs` = `*_sim`):
 
 ```bash
 mkdir -p .slurm/logs
-sbatch .slurm/powerlaw_statistics_parallel_array.sh   # one task per log (01-03)
+sbatch .slurm/powerlaw_statistics_parallel_array.sh                     # real
+sbatch .slurm/powerlaw_statistics_parallel_array.sh sim                 # O2C_S / monkey / …
 # ... wait until array finishes ...
-sbatch .slurm/powerlaw_statistics_combine.sh          # --combine: 04 then 05
+sbatch .slurm/powerlaw_statistics_combine.sh sim                        # same SOURCE
 
 # One array task per log: generate *_sim, then --parallel (no BPIC15_*)
 sbatch .slurm/powerlaw_statistics_sim.sh
-# ... wait until array finishes, then SOURCE=sim in powerlaw_statistics_combine.sh ...
-sbatch .slurm/powerlaw_statistics_combine.sh
+# ... wait until array finishes ...
+sbatch .slurm/powerlaw_statistics_combine.sh sim_from_real_dfgs
 
 # Serial pipeline on the DFG-simulated ACCRE log only
 sbatch .slurm/powerlaw_statistics_accre_sim.sh

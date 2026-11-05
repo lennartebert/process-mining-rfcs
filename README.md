@@ -105,15 +105,6 @@ Dependency rule: analysis step scripts do not import each other. They may call
 shared `cli/` tools and `utils/`. Per-analysis `main.py` files only orchestrate
 ordered steps.
 
-## Activity definition
-
-For attachment extraction, variant counting, and activity statistics (`log_info`), activities are derived from the event log after import:
-
-- If the log defines an XES **Activity classifier**, each activity label combines all of that classifier’s keys (joined with `+`, e.g. `concept:name` and `lifecycle:transition` → `Register+start`).
-- Otherwise, activities are taken from **`concept:name`** only.
-
-The same logic lives in `utils/io/activity_labels.py` and is used by `extract_attachments` and `log_info`.
-
 ## Data
 
 ### Included Datasets
@@ -151,3 +142,41 @@ The pipeline supports all datasets listed in `utils/constants.py` (`ALL_REAL_LOG
 - **ITHD (Help Desk)**: Polato, Mirko (2017): Dataset belonging to the help desk log of an Italian Company. Version 1. 4TU.ResearchData. dataset. https://doi.org/10.4121/uuid:0c60edf1-6f83-4e75-9367-4c63b3e9d5bb
 - **MOBIS (MobIS Challenge 2019)**: Scheid, Marting; Rehse, Jana-Rebecca; Houy, Constantin; Fettke, Peter (2018): Data Set for MobIS Challenge 2019. https://www.dfki.de/web/forschung/projekte-publikationen/publikation/10258
 - **SEPSIS (Sepsis Cases)**: Mannhardt, F. 2016. Sepsis Cases - Event Log, Media types: application/x-gzip, text/csv, text/plain, text/xml, Eindhoven University of Technology, December 7. (https://doi.org/10.4121/UUID:915D2BFB-7E84-49AD-A286-DC35F063A460).
+
+### Preprocessing
+
+Most real logs are used as published XES (`.xes.gz`). CSV sources (and a BPIC12 smoke-test sample) are converted by [`analyses/01_preprocessing.ipynb`](analyses/01_preprocessing.ipynb). Analysis-time import and activity labeling are shared across all logs:
+
+- **Import / ordering.** Logs are loaded via `utils/io/event_logs.py` (`get_event_log_from_path`). By default, events are sorted by `time:timestamp` ascending (`timestamp_sort=True`; used by `log_info` and `extract_attachments`). Traces are then ordered by their first event’s timestamp. **Equal timestamps keep their relative order from the XES file** (Python/PM4Py stable sort; no secondary key). CSV→XES conversions also globally sort by timestamp before export.
+- **Activity definition.** After import, `utils/io/activity_labels.py` builds labels for attachments, variants, and `log_info`: if the log defines an XES classifier named **`Activity classifier`**, its keys are joined with `+` (e.g. `concept:name` + `lifecycle:transition` → `A_SUBMITTED+COMPLETE`); otherwise **`concept:name` only**.
+
+| Log | Source | Case definition | Timestamp | Ordering | Activity definition | Filtering | Verification |
+|-----|--------|-----------------|-----------|----------|---------------------|-----------|--------------|
+| ACCRE | `AcademicCredentials_train.csv.gz` (Zenodo; train only) | CSV `case_id` → `case:concept:name` | CSV `start_time` → `time:timestamp` (PM4Py parse) | Timestamp sort; ties → XES parse order | Fallback `concept:name` | Train only (exclude test; avoid train/test boundary gaps) | Conversion verified (`.verify` = working XES) |
+| BPIC11 | `hospital_log.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` (no `Activity classifier`) | None | Published source match completed (exact) |
+| BPIC12 | `BPI_Challenge_2012.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | `Activity classifier`: `concept:name` + `lifecycle:transition` | None | Published source match completed (uncompressed XES) |
+| BPIC13_cp | `BPI_Challenge_2013_closed_problems.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | `Activity classifier`: `concept:name` + `lifecycle:transition` | None | Published source match completed (uncompressed XES) |
+| BPIC13_i | `BPI_Challenge_2013_incidents.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | `Activity classifier`: `concept:name` + `lifecycle:transition` | None | Published source match completed (uncompressed XES) |
+| BPIC14 | `Detail_Incident_Activity.csv.gz` (`;`) | CSV `Incident ID` → `case:concept:name` | CSV `DateStamp` → `time:timestamp` (PM4Py parse) | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Conversion verified (`.verify` = working XES) |
+| BPIC15_1 | `BPIC15_1.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | `Activity classifier`: `concept:name` + `lifecycle:transition` | None | Published source comparison pending |
+| BPIC15_2 | `BPIC15_2.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | `Activity classifier`: `concept:name` + `lifecycle:transition` | None | Published source comparison pending |
+| BPIC15_3 | `BPIC15_3.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | `Activity classifier`: `concept:name` + `lifecycle:transition` | None | Published source comparison pending |
+| BPIC15_4 | `BPIC15_4.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | `Activity classifier`: `concept:name` + `lifecycle:transition` | None | Published source comparison pending |
+| BPIC15_5 | `BPIC15_5.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | `Activity classifier`: `concept:name` + `lifecycle:transition` | None | Published source comparison pending |
+| BPIC17 | `BPI Challenge 2017.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` (has `MXML Legacy Classifier` with lifecycle, but not named `Activity classifier`) | None | Published source comparison pending |
+| BPIC18 | `BPI Challenge 2018.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Published source comparison pending |
+| BPIC19 | `BPI_Challenge_2019.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Published source comparison pending |
+| BPIC20_dd | `DomesticDeclarations.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Published source comparison pending |
+| BPIC20_id | `InternationalDeclarations.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Published source comparison pending |
+| BPIC20_ptc | `PrepaidTravelCost.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Published source comparison pending |
+| BPIC20_rfp | `RequestForPayment.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Published source comparison pending |
+| BPIC20_tpd | `PermitLog.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Published source comparison pending |
+| CALL | `CallCenter_train.csv.gz` (Zenodo; train only) | CSV `case_id` → `case:concept:name` | CSV `end_time` → `time:timestamp` (PM4Py parse) | Timestamp sort; ties → XES parse order | Fallback `concept:name` | Train only (same rationale as ACCRE) | Conversion verified (`.verify` = working XES) |
+| ITHD | `finale.csv.gz` | CSV `Case ID` → `case:concept:name` | CSV `Complete Timestamp` → `time:timestamp` (PM4Py parse) | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Conversion verified (`.verify` = working XES) |
+| MOBIS | `10258_mobis_challenge_log_2019.csv.gz` (`;`) | CSV `case` → `case:concept:name` | CSV `end` → `time:timestamp` (`%d.%m.%Y %H:%M`, UTC) | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Conversion verified (`.verify` = working XES) |
+| RTFMP | `Road_Traffic_Fine_Management_Process.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Published source comparison pending |
+| SEPSIS | `Sepsis Cases - Event Log.xes.gz` (published) | Published traces | `time:timestamp` | Timestamp sort; ties → XES parse order | Fallback `concept:name` | None | Published source comparison pending |
+
+**Equal timestamps.** Sorting uses only `time:timestamp`. When two events (or two traces’ first events) share the same timestamp, their relative order is left unchanged from the order in the loaded XES (parse / file order). There is no secondary tie-break key (e.g. activity name).
+
+To re-check CSV→XES conversion without overwriting working files, set `OUTPUT_INFIX = ".verify"` in the preprocessing notebook and run the comparison cell. Remaining published-source re-downloads are listed in [`TODO.md`](TODO.md).

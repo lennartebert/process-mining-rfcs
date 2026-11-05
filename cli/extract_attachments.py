@@ -7,12 +7,13 @@ as a script; otherwise `export PYTHONPATH="$PWD"`).
 
 Outputs are written as:
 `<output-root>/<concept>/<dataset>/attachments.csv.gz`
-where concept is one of: variants, activities, dfrs, n1..n10.
+where concept is one of: variants, activities, dfrs, n1..n20.
 Default output root: ``results/attachments``.
 """
 
 import argparse
 import sys
+import time
 from pathlib import Path
 from typing import List
 
@@ -34,6 +35,7 @@ from utils.io.attachments import (
     START,
     warn_if_start_end_in_activity_set,
 )
+from utils.timing import format_duration, timing_print
 
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
@@ -56,7 +58,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         nargs="+",
         default=["variants"],
         choices=["variants", "activities", "dfrs", *NGRAM_CONCEPTS],
-        help="Concepts for attachment extraction (n1..n10 = length-k activity n-grams)",
+        help="Concepts for attachment extraction (n1..n20 = length-k activity n-grams)",
     )
     parser.add_argument(
         "--add-start-end",
@@ -115,6 +117,7 @@ def main(argv: List[str] | None = None) -> None:
             continue
 
         print(f"Extracting {dataset_name} from {log_path}...")
+        dataset_t0 = time.perf_counter()
         event_log = get_event_log_from_path(log_path)
         trace_data = trace_completion_data(event_log)
         # Sort once and reuse for all requested concepts to avoid repeated log traversal.
@@ -125,6 +128,7 @@ def main(argv: List[str] | None = None) -> None:
         ):
             warn_if_start_end_in_activity_set(trace_data, dataset_name=dataset_name)
         for concept, attachment_path in pending_outputs:
+            concept_t0 = time.perf_counter()
             attachments_df = extract_attachments_from_trace_data(
                 trace_data, concept, add_start_end=args.add_start_end
             )
@@ -134,6 +138,15 @@ def main(argv: List[str] | None = None) -> None:
                 f"  Saved {concept}/{dataset_name}/attachments.csv.gz "
                 f"(rows={len(attachments_df)}, nodes={unique_nodes})"
             )
+            timing_print(
+                f"extract concept={concept} dataset={dataset_name} "
+                f"elapsed={format_duration(time.perf_counter() - concept_t0)}"
+            )
+        timing_print(
+            f"extract dataset={dataset_name} "
+            f"elapsed={format_duration(time.perf_counter() - dataset_t0)} "
+            f"({len(pending_outputs)} concepts)"
+        )
 
     print(f"\nAttachment extraction complete. Output root: {output_root}")
 

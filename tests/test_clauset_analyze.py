@@ -450,6 +450,18 @@ class FitDispatchSmokeTests(unittest.TestCase):
         self.assertTrue(np.isnan(fit["xmax"]))
         self.assertTrue(fit["fit_valid"])
 
+    def test_lower_bounded_fixed_xmin(self) -> None:
+        fit = _powerlaw_fit_with_stats_for_model(
+            self.lower_data,
+            LOWER_BOUNDED_POWER_LAW,
+            doubly_bounded_exclude_head_variants=(0, 1, 2),
+            fixed_xmin=2,
+        )
+        assert fit is not None
+        self.assertEqual(fit["xmin"], 2)
+        self.assertTrue(np.isnan(fit["xmax"]))
+        self.assertTrue(fit["fit_valid"])
+
     def test_doubly_bounded(self) -> None:
         fit = _powerlaw_fit_with_stats_for_model(
             self.doubly_data,
@@ -546,6 +558,29 @@ class BootstrapGofTests(unittest.TestCase):
             doubly_bounded_exclude_head_variants=(0, 1, 2),
         )
         self.assertEqual(gof["n_success"] + gof["n_failed"], 3)
+        if gof["n_success"] > 0:
+            self.assertGreaterEqual(gof["gof_p"], 0.0)
+            self.assertLessEqual(gof["gof_p"], 1.0)
+
+    def test_fixed_xmin_locks_empirical_and_gof(self) -> None:
+        fit = _powerlaw_fit_with_stats_for_model(
+            self.data,
+            LOWER_BOUNDED_POWER_LAW,
+            doubly_bounded_exclude_head_variants=(0, 1, 2),
+            fixed_xmin=2,
+        )
+        assert fit is not None
+        self.assertEqual(fit["xmin"], 2)
+        gof = bootstrap_gof(
+            self.data,
+            fit,
+            LOWER_BOUNDED_POWER_LAW,
+            n_bootstraps=8,
+            random_seed=11,
+            fixed_xmin=2,
+        )
+        self.assertEqual(gof["xmin"], 2.0)
+        self.assertEqual(gof["n_success"] + gof["n_failed"], 8)
         if gof["n_success"] > 0:
             self.assertGreaterEqual(gof["gof_p"], 0.0)
             self.assertLessEqual(gof["gof_p"], 1.0)

@@ -22,7 +22,7 @@ CONCEPT_CHOICES = ["variants", "activities", "dfrs", *NGRAM_CONCEPTS]
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Extract attachments for variants and n-grams n1..n10 "
+            "Extract attachments for variants and n-grams n1..n20 "
             "via cli/extract_attachments.py"
         )
     )
@@ -43,7 +43,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         nargs="+",
         default=DEFAULT_CONCEPTS,
         choices=CONCEPT_CHOICES,
-        help="Concepts to extract (default: n1..n10 + variants)",
+        help="Concepts to extract (default: n1..n20 + variants)",
     )
     parser.add_argument(
         "--add-start-end",

@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import sys
+import time
 from pathlib import Path
 from typing import List, Sequence
 
@@ -28,12 +29,13 @@ from utils.constants import (
     ALL_SIM_LOG_DATASETS,
     ALL_SIM_LOGS_TOKEN,
     POWERLAW_STATISTICS_REAL_DIR,
-    POWERLAW_STATISTICS_SIM_DIR,
+    POWERLAW_STATISTICS_SIM_FROM_REAL_DFGS_DIR,
     TEST_ATTACHMENTS_DIR,
     TEST_DATASET,
     TEST_POWERLAW_STATISTICS_DIR,
 )
 from utils.io.attachments import NGRAM_CONCEPTS
+from utils.timing import format_duration, timing_print
 
 STEPS: list[tuple[str, str]] = [
     ("01", "01_describe.py"),
@@ -123,7 +125,7 @@ def _results_dir(
                 "(shared CSVs must not mix sources)."
             )
         if all(sim_flags):
-            return str(POWERLAW_STATISTICS_SIM_DIR)
+            return str(POWERLAW_STATISTICS_SIM_FROM_REAL_DFGS_DIR)
     return str(POWERLAW_STATISTICS_REAL_DIR)
 
 
@@ -136,6 +138,7 @@ def _argv_for_step(
     parallel: bool,
     n_bootstraps: int | None,
     random_seed: int | None,
+    fixed_xmin: int | None,
     results_dir: str | None,
     add_start_end: bool,
     passthrough: List[str],
@@ -191,6 +194,8 @@ def _argv_for_step(
             argv.extend(["--n-bootstraps", str(n_bootstraps)])
         if random_seed is not None:
             argv.extend(["--random-seed", str(random_seed)])
+        if fixed_xmin is not None:
+            argv.extend(["--xmin", str(fixed_xmin)])
 
     if parallel and step_id in {"01", "03"}:
         argv.append("--parallel")
@@ -221,7 +226,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         default=None,
         choices=CONCEPT_CHOICES,
         help=(
-            "Concepts for steps 02-05 (default: n1..n10 + variants; "
+            "Concepts for steps 02-05 (default: n1..n20 + variants; "
             f"with --test default: {', '.join(TEST_CONCEPTS)})"
         ),
     )
@@ -286,7 +291,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         default=None,
         help=(
             "Power-law statistics results root (default: results/powerlaw_statistics/real, "
-            "or results/powerlaw_statistics/sim for *_sim logs; "
+            "or results/powerlaw_statistics/sim_from_real_dfgs for *_sim logs; "
             "with --test: results/test/powerlaw_statistics)"
         ),
     )
@@ -301,6 +306,15 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         type=int,
         default=None,
         help="Random seed for step 03 bootstrap resampling",
+    )
+    parser.add_argument(
+        "--xmin",
+        type=int,
+        default=None,
+        help=(
+            "Lock xmin for step 03 empirical fit and bootstrap refits "
+            "(default: estimate / model policy)"
+        ),
     )
     parser.add_argument(
         "--passthrough",
@@ -335,6 +349,7 @@ def main(argv: List[str] | None = None) -> None:
     results_dir = _results_dir(args, datasets)
     selected = _selected_steps(args)
 
+    pipeline_t0 = time.perf_counter()
     for step_id, filename in selected:
         module = _load_step(filename)
         step_argv = _argv_for_step(
@@ -345,12 +360,23 @@ def main(argv: List[str] | None = None) -> None:
             parallel=args.parallel,
             n_bootstraps=args.n_bootstraps,
             random_seed=args.random_seed,
+            fixed_xmin=args.xmin,
             results_dir=results_dir,
             add_start_end=args.add_start_end,
             passthrough=args.passthrough,
         )
         print(f"$ python analyses/powerlaw_statistics/{filename} {' '.join(step_argv)}")
+        timing_print(f"step={step_id} ({filename}) start")
+        step_t0 = time.perf_counter()
         module.main(step_argv)
+        timing_print(
+            f"step={step_id} ({filename}) done "
+            f"elapsed={format_duration(time.perf_counter() - step_t0)}"
+        )
+    timing_print(
+        f"pipeline total elapsed={format_duration(time.perf_counter() - pipeline_t0)} "
+        f"(steps={[sid for sid, _ in selected]})"
+    )
 
 
 if __name__ == "__main__":

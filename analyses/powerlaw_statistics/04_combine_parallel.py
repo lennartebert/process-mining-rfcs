@@ -8,6 +8,10 @@ power-law statistics results root:
 
 Optional ``--datasets`` keeps only shards for the listed logs.
 
+Also writes a stacked exploratory table
+``summary_all_concepts.csv`` at the results root (all requested concepts ×
+models, with ``concept`` / ``model`` columns).
+
 Does not compose tables/plots; run ``05_compose_results.py`` afterwards
 (``main.py --combine`` runs 04 then 05).
 """
@@ -56,6 +60,70 @@ def _filter_shards_by_log(
     return kept
 
 
+def _bool_and_int_columns(frames: Sequence[pd.DataFrame]) -> tuple[set[str], set[str]]:
+    """Columns to restore after concat with sparse error shards.
+
+    Empty cells in a failed-fit shard make pandas upcast ``bool`` to ``1.0``
+    and ``int`` to ``398.0``. Keep a column boolean if any shard inferred it
+    as bool, and integral if any shard inferred it as int and no shard holds
+    a fractional value.
+    """
+    bool_cols: set[str] = set()
+    int_cols: set[str] = set()
+    fractional_cols: set[str] = set()
+    for frame in frames:
+        for column in frame.columns:
+            series = frame[column]
+            if pd.api.types.is_bool_dtype(series):
+                bool_cols.add(str(column))
+                continue
+            if pd.api.types.is_integer_dtype(series):
+                int_cols.add(str(column))
+                continue
+            if not pd.api.types.is_float_dtype(series):
+                continue
+            values = series.dropna()
+            if values.empty:
+                continue
+            if not (values == values.round()).all():
+                fractional_cols.add(str(column))
+    return bool_cols, int_cols - fractional_cols - bool_cols
+
+
+def _restore_bool_column(series: pd.Series) -> pd.Series:
+    def convert(value: object) -> object:
+        if value is None or pd.isna(value):
+            return pd.NA
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)) and float(value) in (0.0, 1.0):
+            return bool(int(value))
+        text = str(value).strip().lower()
+        if text in {"true", "1", "1.0", "yes"}:
+            return True
+        if text in {"false", "0", "0.0", "no"}:
+            return False
+        return pd.NA
+
+    return series.map(convert).astype("boolean")
+
+
+def _restore_concat_dtypes(
+    combined: pd.DataFrame, frames: Sequence[pd.DataFrame]
+) -> pd.DataFrame:
+    bool_cols, int_cols = _bool_and_int_columns(frames)
+    restored = combined.copy()
+    for column in bool_cols:
+        if column in restored.columns:
+            restored[column] = _restore_bool_column(restored[column])
+    for column in int_cols:
+        if column not in restored.columns:
+            continue
+        numeric = pd.to_numeric(restored[column], errors="coerce")
+        restored[column] = numeric.round().astype("Int64")
+    return restored
+
+
 def _concat_sorted_csvs(
     paths: Sequence[Path],
     *,
@@ -72,7 +140,7 @@ def _concat_sorted_csvs(
             frames.append(df)
     if not frames:
         return None
-    combined = pd.concat(frames, ignore_index=True)
+    combined = _restore_concat_dtypes(pd.concat(frames, ignore_index=True), frames)
     present = [c for c in sort_cols if c in combined.columns]
     if present:
         combined = combined.sort_values(list(present)).reset_index(drop=True)
@@ -155,6 +223,57 @@ def combine_clauset(
                 )
 
 
+def combine_summaries_across_concepts(
+    output_dir: Path,
+    concepts: Sequence[str],
+) -> None:
+    """Stack per-concept ``summary.csv`` files into one exploratory table."""
+    concept_order = {name: index for index, name in enumerate(concepts)}
+    frames: list[pd.DataFrame] = []
+    for concept in concepts:
+        concept_dir = output_dir / concept
+        if not concept_dir.is_dir():
+            continue
+        for model_dir in sorted(p for p in concept_dir.iterdir() if p.is_dir()):
+            if model_dir.name not in DISTRIBUTION_NAMES:
+                continue
+            summary_path = model_dir / "summary.csv"
+            if not summary_path.is_file():
+                continue
+            try:
+                df = pd.read_csv(summary_path)
+            except pd.errors.EmptyDataError:
+                print(f"Warning: skipping empty summary {summary_path}")
+                continue
+            if df.empty:
+                continue
+            frame = df.copy()
+            frame.insert(0, "concept", concept)
+            frame.insert(1, "model", model_dir.name)
+            frames.append(frame)
+
+    if not frames:
+        print(f"Warning: no summary.csv files to stack under {output_dir}")
+        return
+
+    combined = pd.concat(frames, ignore_index=True)
+    combined["_concept_order"] = combined["concept"].map(
+        lambda name: concept_order.get(str(name), len(concept_order))
+    )
+    sort_cols = ["_concept_order", "concept", "model"]
+    if "log_name" in combined.columns:
+        sort_cols.append("log_name")
+    combined = combined.sort_values(sort_cols).drop(columns=["_concept_order"])
+    combined = combined.reset_index(drop=True)
+
+    out_path = output_dir / "summary_all_concepts.csv"
+    combined.to_csv(out_path, index=False)
+    print(
+        f"Stacked {len(frames)} summary.csv file(s) "
+        f"({len(combined)} rows) -> {out_path}"
+    )
+
+
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Combine power-law statistics parallel shards (log_info + Clauset) into aggregates"
@@ -170,7 +289,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         nargs="+",
         default=DEFAULT_CONCEPTS,
         choices=CONCEPT_CHOICES,
-        help="Concepts whose Clauset shards to merge (default: n1..n10 + variants)",
+        help="Concepts whose Clauset shards to merge (default: n1..n20 + variants)",
     )
     parser.add_argument(
         "--datasets",
@@ -193,6 +312,7 @@ def main(argv: List[str] | None = None) -> None:
         print(f"Dataset filter: {datasets}")
     combine_log_info(output_dir, datasets=datasets)
     combine_clauset(output_dir, args.concepts, datasets=datasets)
+    combine_summaries_across_concepts(output_dir, args.concepts)
     print(f"Combine complete: {output_dir}")
 
 

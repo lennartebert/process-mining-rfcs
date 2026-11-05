@@ -1,4 +1,4 @@
-"""Standalone first-order DFG simulator for power-law statistics analysis.
+"""Generate synthetic logs from real logs via a first-order DFG simulator.
 
 For each source log, count directly-follows relations (with START/END pads),
 build a per-activity CDF of next activities, and sample the same number of
@@ -7,8 +7,8 @@ traces as the source. Writes ``data/synthetic/<LOG>_sim/<LOG>_sim.xes.gz``
 
 Not wired into ``main.py``. Run directly:
 
-    python analyses/powerlaw_statistics/06_generate_synthetic.py
-    python analyses/powerlaw_statistics/06_generate_synthetic.py --datasets ACCRE
+    python analyses/powerlaw_statistics/06_generate_synthetic_from_real_logs.py
+    python analyses/powerlaw_statistics/06_generate_synthetic_from_real_logs.py --datasets ACCRE
 """
 
 from __future__ import annotations
