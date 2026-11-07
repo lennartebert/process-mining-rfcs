@@ -12,6 +12,13 @@ Also writes a stacked exploratory table
 ``summary_all_concepts.csv`` at the results root (all requested concepts ×
 models, with ``concept`` / ``model`` columns).
 
+For the real-log xmin experiments (``real``, ``real_xmin1``, ``real_xmin2``),
+writes paired GOF comparisons under ``paired_gof/`` from the saved results,
+including ``paired_gof_paper_table.csv`` for k = 1, ..., 20.
+Fits and GOF tests are not rerun. See ``paired_gof.py``. The same experiments
+also get cross-log n-gram saturation tables under ``saturation/``. Those
+counts come from the extracted traces, not from the fits. See ``saturation.py``.
+
 Does not compose tables/plots; run ``05_compose_results.py`` afterwards
 (``main.py --combine`` runs 04 then 05).
 """
@@ -19,6 +26,7 @@ Does not compose tables/plots; run ``05_compose_results.py`` afterwards
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import sys
 from pathlib import Path
 from typing import List, Sequence
@@ -313,7 +321,33 @@ def main(argv: List[str] | None = None) -> None:
     combine_log_info(output_dir, datasets=datasets)
     combine_clauset(output_dir, args.concepts, datasets=datasets)
     combine_summaries_across_concepts(output_dir, args.concepts)
+    _write_paired_gof_comparisons(output_dir)
+    _write_saturation_diagnostics(output_dir)
     print(f"Combine complete: {output_dir}")
+
+
+def _write_paired_gof_comparisons(output_dir: Path) -> None:
+    """Delegate to ``paired_gof`` without importing this module recursively."""
+    path = Path(__file__).resolve().parent / "paired_gof.py"
+    spec = importlib.util.spec_from_file_location("paired_gof_comparisons", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    module.write_paired_gof_comparisons(output_dir)
+
+
+def _write_saturation_diagnostics(output_dir: Path) -> None:
+    """Delegate to ``saturation`` without importing this module recursively."""
+    path = Path(__file__).resolve().parent / "saturation.py"
+    spec = importlib.util.spec_from_file_location("saturation_diagnostics", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    module.write_saturation_diagnostics(output_dir)
 
 
 if __name__ == "__main__":

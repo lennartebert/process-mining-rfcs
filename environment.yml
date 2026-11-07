@@ -20,5 +20,6 @@ dependencies:
       - jupyter
       - ipywidgets
       - powerlaw
+      - statsmodels==0.14.2
       # matplotlib 3.6.x is incompatible with matplotlib-inline>=0.2 (_get API).
       - matplotlib-inline==0.1.6

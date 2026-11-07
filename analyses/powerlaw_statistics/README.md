@@ -108,6 +108,28 @@ to execute **04 → 05** (merge shards, then compose tables/plots).
 
 Step 05 then builds `variant_power_law.*`, `log_n_scaling.*`, `pl_outcome_summary.*`, plots, etc. from the combined summaries.
 
+Step 04 also writes paired GOF comparisons when the results directory is one of the real-log xmin experiments (`real`, `real_xmin1`, `real_xmin2`). It reuses saved summary rows and does not refit or rerun GOF. Outputs land in `<output-dir>/paired_gof/`:
+
+- `paired_gof_summary.csv` — one row per sensitivity configuration and k-versus-variants comparison
+- `paired_gof_audit.csv` — one row per study log, configuration, and comparison
+- `paired_gof_results.txt` — the same comparisons in percentage points, with the methods note
+- `paired_gof_paper_table.csv` — k = 1, ..., 20 against trace variants at adaptive xmin, 30 fitted types, and GOF threshold 0.10
+
+The comparisons are k = 1, 2, 3, and 20 against trace variants, on each combination of `min_fitted_types` in {15, 30, 50}, GOF threshold in {0.05, 0.10}, and xmin experiment in {fixed 1, fixed 2, adaptive}. The xmin experiment is the results directory, not the fitted xmin: an adaptive fit that selected xmin = 1 stays in `real`. Variants come from that same directory. Missing results are reported rather than replaced.
+
+A log is paired only when both endpoints are eligible. Eligibility is a valid saved fit/GOF result with at least the stated number of fitted types. It is recalculated for each cutoff and is not read from the A–E labels. The outcome is GOF non-rejection, `gof_p >= threshold`, with `gof_p` kept as a probability. The reported difference is the non-rejection proportion at trace variants minus the proportion at k. The 95% interval is Newcombe's paired method 10 (PMID 9839354) and is pointwise. The two-sided exact McNemar p-values are Holm-adjusted across the five comparisons within each configuration. All 18 configurations are exported.
+
+The paper table keeps one column per k. Difference and CI bounds are the probability-scale values multiplied by 100 once. If a comparison has no jointly eligible logs, `paired_N` is 0 and the estimates and p-values are `NaN`. A comparison with no discordant pairs keeps raw McNemar p = 1. Missing source results stay in their column; the combine log states why. Three Holm rows are written from the raw p-values, each with its own family: k <= 20, k <= 10, and k <= 3. Columns outside a family are `NaN`. These rows are alternative family definitions, not three independent confirmations. The paper has to justify which family supports the main inference rather than choosing the family whose adjustment is significant.
+
+The pairing unit is the log, and logs are treated as independent. Related benchmarks and the non-random study collection limit generalisation. Non-rejection does not show that a power law is true or best, and a non-significant difference does not show equivalence. The intervals describe differences across logs, not Monte Carlo error in one GOF p-value.
+
+Step 04 also writes cross-log saturation tables for those same real-log directories, under `<output-dir>/saturation/`:
+
+- `saturation_summary.csv` — one row per study log and order k in {5, 10, 15, 20}, with shares on the probability scale
+- `saturation_results.txt` — one readable table per order
+
+The counts use every study log. They do not depend on xmin, the fitted-type cutoff, or the GOF threshold, and they are not read from the GOF tables. Trace length excludes the START and END markers. A case or variant is complete when its length plus 2 is at most k. Each case contributes `max(1, L + 3 - k)` occurrences, which is the extractor's window count. The median row is the unweighted median across logs. Formula totals are checked against the saved occurrence totals wherever those totals exist.
+
 ```bash
 # One log (local or Slurm array task)
 python analyses/powerlaw_statistics/main.py --datasets BPIC12 --parallel
