@@ -22,6 +22,10 @@ TEST_PL_STATS_DIR = TEST_RESULTS_DIR / "pl_stats"
 TEST_DATASET = "TEST_BPIC12"
 # Manual copy+paste staging for git-tracked permanent results (never auto-written).
 PERM_RESULTS_DIR = RESULTS_DIR / "perm"
+PERM_POWERLAW_STATISTICS_DIR = PERM_RESULTS_DIR / "powerlaw_statistics"
+PERM_PL_STATS_REAL_DIR = PERM_POWERLAW_STATISTICS_DIR / "real"
+# Built online appendix PDF (written under results/pl_stats/; also staged in perm).
+ONLINE_APPENDIX_PDF_NAME = "Online Appendix Powerlaw Compatibility.pdf"
 DATA_DIR = Path("data")
 DATA_DICTIONARY_FILENAME = "data_dictionary.json"
 DATA_DICTIONARY_PATH = DATA_DIR / DATA_DICTIONARY_FILENAME

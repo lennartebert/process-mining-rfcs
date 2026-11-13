@@ -168,10 +168,16 @@ Standalone LaTeX appendix sources live under
 tables. Assemble and compile with:
 
 ```bash
+# From working results under results/pl_stats/
 python analyses/powerlaw_statistics/appendix/generate.py
+
+# From tracked perm results (ships with the repository)
+python analyses/powerlaw_statistics/appendix/generate.py --perm
 ```
 
-The PDF is written to `results/pl_stats/powerlaw_online_appendix.pdf`.
+The PDF is written to `results/pl_stats/Online Appendix Powerlaw Compatibility.pdf`.
+With `--perm`, the same file is also updated under
+`results/perm/powerlaw_statistics/`.
 
 ## Saturation
 

@@ -42,6 +42,7 @@
 \date{November 20, 2026}
 
 \begin{document}
+\input{_generated_paths.tex}
 \maketitle
 
 \noindent
@@ -174,7 +175,7 @@ Bold entries indicate a significant likelihood-ratio comparison
 \begingroup
 \setlength{\tabcolsep}{2pt}%
 \tiny
-\input{"../../../results/pl_stats/real/xmin-adaptive/clauset_results/min[50]-gofp[0.10]-pcomp[0.10]/across_logs_best_alternative.tex"}%
+\AppendixBestAlternativeInput
 \endgroup
 \end{table}
 \end{landscape}
@@ -188,7 +189,7 @@ Bold entries indicate a significant likelihood-ratio comparison
 The following tables summarise type and occurrence transitions when moving
 across abstraction orders for each analysed event log.
 Source CSVs (and generated \texttt{.tex} companions) live under
-\path{results/pl_stats/real/xmin-adaptive/explore_gof_changes/}
+\AppendixExploreDirPath{}
 for each log.
 Categories follow the analysis pipeline
 (extended $1\rightarrow 1$, branched $1\rightarrow$many, newly completed,
@@ -210,7 +211,7 @@ likelihood-ratio tests are not recomputed as these do not depend on the configur
 \centering
 \caption{One-at-a-time sensitivity configurations used in the appendix.}
 \label{tab:sensitivity-configurations}
-\input{../../../results/pl_stats/real/sensitivity/configurations.tex}
+\AppendixSensitivityConfigurationsInput
 \end{table}
 
 \subsection{Summary across configurations}
@@ -224,7 +225,7 @@ sensitivity configurations.}
 \begingroup
 \setlength{\tabcolsep}{2.5pt}%
 \scriptsize
-\input{../../../results/pl_stats/real/sensitivity/sensitivity_summary.tex}%
+\AppendixSensitivitySummaryInput
 \endgroup
 \end{table}
 
@@ -234,7 +235,7 @@ sensitivity configurations.}
 For each sensitivity configuration, we include the trace-variant power-law
 table, the across-logs category matrix, and the paired GOF comparison figure
 written under
-\path{results/pl_stats/real/xmin-adaptive/clauset_results/<config>/}.
+\AppendixClausetConfigDirPath{}.
 
 \input{_generated_sensitivity_detail.tex}
 

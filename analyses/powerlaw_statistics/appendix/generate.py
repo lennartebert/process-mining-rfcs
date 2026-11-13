@@ -2,16 +2,20 @@
 
 Responsibilities:
 1. Resolve the repository root from this file's location.
-2. Ensure appendix-relevant ``.tex`` tables exist next to their CSVs
+2. Select the results tree (``results/pl_stats`` or tracked
+   ``results/perm/powerlaw_statistics`` via ``--perm``).
+3. Ensure appendix-relevant ``.tex`` tables exist next to their CSVs
    (regenerating lightweight LaTeX from saved CSVs when needed).
-3. Write deterministic ``_generated_*.tex`` include fragments.
-4. Compile ``main.tex`` with ``latexmk`` (fallback: ``pdflatex``).
-5. Copy the PDF to ``results/pl_stats/powerlaw_online_appendix.pdf``.
-6. Remove temporary LaTeX build artifacts in the appendix directory.
+4. Write deterministic ``_generated_*.tex`` include fragments.
+5. Compile ``main.tex`` with ``latexmk`` (fallback: ``pdflatex``).
+6. Copy the PDF to ``results/pl_stats/Online Appendix Powerlaw Compatibility.pdf``
+   (and, with ``--perm``, also into ``results/perm/powerlaw_statistics/``).
+7. Remove temporary LaTeX build artifacts in the appendix directory.
 
 Usage (from any working directory)::
 
     python analyses/powerlaw_statistics/appendix/generate.py
+    python analyses/powerlaw_statistics/appendix/generate.py --perm
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ import importlib
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -38,21 +43,22 @@ from analyses.powerlaw_statistics.analysis_helpers.paths import (  # noqa: E402
 )
 from analyses.powerlaw_statistics.analysis_helpers.sensitivity import (  # noqa: E402
     CONFIGURATIONS,
-    OUTPUT_DIR as SENSITIVITY_DIR,
     write_sensitivity_tex_from_csv,
 )
-from utils.constants import ALL_REAL_LOG_DATASETS, PL_STATS_DIR, PL_STATS_REAL_DIR  # noqa: E402
+from utils.constants import (  # noqa: E402
+    ALL_REAL_LOG_DATASETS,
+    ONLINE_APPENDIX_PDF_NAME,
+    PERM_PL_STATS_REAL_DIR,
+    PERM_POWERLAW_STATISTICS_DIR,
+    PL_STATS_DIR,
+    PL_STATS_REAL_DIR,
+)
 
 APPENDIX_DIR = Path(__file__).resolve().parent
 MAIN_TEX = APPENDIX_DIR / "main.tex"
+PATHS_FRAGMENT = APPENDIX_DIR / "_generated_paths.tex"
 TRANSITIONS_FRAGMENT = APPENDIX_DIR / "_generated_transitions.tex"
 SENSITIVITY_FRAGMENT = APPENDIX_DIR / "_generated_sensitivity_detail.tex"
-# Repo convention is results/pl_stats/ (task draft used results/powerlaw_stats/).
-OUTPUT_PDF = REPO_ROOT / PL_STATS_DIR / "powerlaw_online_appendix.pdf"
-EXPERIMENT_DIR = (REPO_ROOT / PL_STATS_REAL_DIR).resolve()
-SENSITIVITY_ABS = (REPO_ROOT / SENSITIVITY_DIR).resolve()
-
-RESULTS_REL_FROM_APPENDIX = Path("../../../results/pl_stats")
 BASELINE_CONFIG = config_dirname(min_types=50, gof_p=0.10, comparison_p=0.10)
 
 AUX_SUFFIXES = (
@@ -69,31 +75,99 @@ AUX_SUFFIXES = (
 )
 
 
-def _results_input(*parts: str) -> str:
+@dataclass(frozen=True)
+class AppendixPaths:
+    """Resolved input/output locations for one appendix build."""
+
+    experiment_dir: Path
+    sensitivity_dir: Path
+    results_rel_from_appendix: Path
+    results_display: str
+    output_pdf: Path
+    perm_pdf: Path | None
+
+
+def resolve_paths(*, use_perm: bool) -> AppendixPaths:
+    output_pdf = REPO_ROOT / PL_STATS_DIR / ONLINE_APPENDIX_PDF_NAME
+    if use_perm:
+        experiment_dir = (REPO_ROOT / PERM_PL_STATS_REAL_DIR).resolve()
+        results_rel = Path("../../../results/perm/powerlaw_statistics")
+        results_display = "results/perm/powerlaw_statistics"
+        perm_pdf = REPO_ROOT / PERM_POWERLAW_STATISTICS_DIR / ONLINE_APPENDIX_PDF_NAME
+    else:
+        experiment_dir = (REPO_ROOT / PL_STATS_REAL_DIR).resolve()
+        results_rel = Path("../../../results/pl_stats")
+        results_display = "results/pl_stats"
+        perm_pdf = None
+    return AppendixPaths(
+        experiment_dir=experiment_dir,
+        sensitivity_dir=experiment_dir / "sensitivity",
+        results_rel_from_appendix=results_rel,
+        results_display=results_display,
+        output_pdf=output_pdf,
+        perm_pdf=perm_pdf,
+    )
+
+
+def _results_input(paths: AppendixPaths, *parts: str) -> str:
     """Return a quoted relative path safe for \\input / \\includegraphics with '['."""
-    rel = RESULTS_REL_FROM_APPENDIX.joinpath(*parts).as_posix()
+    rel = paths.results_rel_from_appendix.joinpath(*parts).as_posix()
     return f'"{rel}"'
 
 
-def ensure_latex_tables(*, regenerate: bool = True) -> list[str]:
+def write_paths_fragment(paths: AppendixPaths) -> Path:
+    """Write macros for the few static ``\\input`` / ``\\path`` sites in main.tex."""
+    best_alt = _results_input(
+        paths,
+        "real",
+        "xmin-adaptive",
+        "clauset_results",
+        BASELINE_CONFIG,
+        "across_logs_best_alternative.tex",
+    )
+    configs = _results_input(paths, "real", "sensitivity", "configurations.tex")
+    summary = _results_input(paths, "real", "sensitivity", "sensitivity_summary.tex")
+    def _texttt_path(text: str) -> str:
+        return text.replace("_", r"\_").replace("<", r"$<$").replace(">", r"$>$")
+
+    explore_display = _texttt_path(
+        f"{paths.results_display}/real/xmin-adaptive/explore_gof_changes/"
+    )
+    clauset_display = _texttt_path(
+        f"{paths.results_display}/real/xmin-adaptive/clauset_results/<config>/"
+    )
+    lines = [
+        "% Auto-generated by generate.py — do not edit by hand.",
+        rf"\newcommand{{\AppendixBestAlternativeInput}}{{\input{{{best_alt}}}}}",
+        rf"\newcommand{{\AppendixSensitivityConfigurationsInput}}{{\input{{{configs}}}}}",
+        rf"\newcommand{{\AppendixSensitivitySummaryInput}}{{\input{{{summary}}}}}",
+        rf"\newcommand{{\AppendixExploreDirPath}}{{\texttt{{{explore_display}}}}}",
+        rf"\newcommand{{\AppendixClausetConfigDirPath}}{{\texttt{{{clauset_display}}}}}",
+        "",
+    ]
+    PATHS_FRAGMENT.write_text("\n".join(lines), encoding="utf-8")
+    return PATHS_FRAGMENT
+
+
+def ensure_latex_tables(paths: AppendixPaths, *, regenerate: bool = True) -> list[str]:
     """Create/refresh appendix ``.tex`` tables beside existing CSVs."""
     notes: list[str] = []
     if regenerate:
-        written = write_explore_transition_overview_tex(EXPERIMENT_DIR, xmin=None)
+        written = write_explore_transition_overview_tex(paths.experiment_dir, xmin=None)
         notes.append(
             f"transition overview TeX: wrote {len(written)} file(s) under "
-            f"{explore_dir(EXPERIMENT_DIR, None)}"
+            f"{explore_dir(paths.experiment_dir, None)}"
         )
-        sens = write_sensitivity_tex_from_csv(SENSITIVITY_ABS)
+        sens = write_sensitivity_tex_from_csv(paths.sensitivity_dir)
         notes.append(
-            f"sensitivity TeX: wrote {len(sens)} file(s) under {SENSITIVITY_ABS}"
+            f"sensitivity TeX: wrote {len(sens)} file(s) under {paths.sensitivity_dir}"
         )
     return notes
 
 
-def collect_transition_logs() -> tuple[list[str], list[str]]:
+def collect_transition_logs(paths: AppendixPaths) -> tuple[list[str], list[str]]:
     """Return (available logs with tex, missing expected logs)."""
-    root = explore_dir(EXPERIMENT_DIR, None)
+    root = explore_dir(paths.experiment_dir, None)
     available: list[str] = []
     missing: list[str] = []
     for log_name in ALL_REAL_LOG_DATASETS:
@@ -108,7 +182,7 @@ def collect_transition_logs() -> tuple[list[str], list[str]]:
     return available, missing
 
 
-def write_transitions_fragment(logs: list[str]) -> Path:
+def write_transitions_fragment(paths: AppendixPaths, logs: list[str]) -> Path:
     lines = [
         "% Auto-generated by generate.py — do not edit by hand.",
         "% Deterministic order: ALL_REAL_LOG_DATASETS filtered to available TeX.",
@@ -140,7 +214,12 @@ def write_transitions_fragment(logs: list[str]) -> Path:
     )
     for log_name in logs:
         rel = _results_input(
-            "real", "xmin-adaptive", "explore_gof_changes", log_name, "transition_overview.tex"
+            paths,
+            "real",
+            "xmin-adaptive",
+            "explore_gof_changes",
+            log_name,
+            "transition_overview.tex",
         )
         log_tex = log_name.replace("_", r"\_")
         lines.extend(
@@ -160,9 +239,9 @@ def write_transitions_fragment(logs: list[str]) -> Path:
     return TRANSITIONS_FRAGMENT
 
 
-def config_output_dir(config) -> Path:
+def config_output_dir(paths: AppendixPaths, config) -> Path:
     return clauset_config_dir(
-        EXPERIMENT_DIR,
+        paths.experiment_dir,
         config.xmin,
         min_types=config.min_types,
         gof_p=config.p_gof,
@@ -170,11 +249,11 @@ def config_output_dir(config) -> Path:
     )
 
 
-def collect_sensitivity_configs() -> tuple[list, list[str]]:
+def collect_sensitivity_configs(paths: AppendixPaths) -> tuple[list, list[str]]:
     available = []
     missing: list[str] = []
     for config in CONFIGURATIONS:
-        folder = config_output_dir(config)
+        folder = config_output_dir(paths, config)
         required = {
             "variant_power_law.tex": folder / "variant_power_law.tex",
             "across_logs_categories.tex": folder / "across_logs_categories.tex",
@@ -188,7 +267,7 @@ def collect_sensitivity_configs() -> tuple[list, list[str]]:
     return available, missing
 
 
-def write_sensitivity_fragment(configs: list) -> Path:
+def write_sensitivity_fragment(paths: AppendixPaths, configs: list) -> Path:
     lines = [
         "% Auto-generated by generate.py — do not edit by hand.",
         "% Deterministic order follows sensitivity.CONFIGURATIONS.",
@@ -201,13 +280,28 @@ def write_sensitivity_fragment(configs: list) -> Path:
             comparison_p=config.p_comp,
         )
         variant = _results_input(
-            "real", "xmin-adaptive", "clauset_results", dirname, "variant_power_law.tex"
+            paths,
+            "real",
+            "xmin-adaptive",
+            "clauset_results",
+            dirname,
+            "variant_power_law.tex",
         )
         categories = _results_input(
-            "real", "xmin-adaptive", "clauset_results", dirname, "across_logs_categories.tex"
+            paths,
+            "real",
+            "xmin-adaptive",
+            "clauset_results",
+            dirname,
+            "across_logs_categories.tex",
         )
         paired_pdf = _results_input(
-            "real", "xmin-adaptive", "clauset_results", dirname, "paired_gof_comparison.pdf"
+            paths,
+            "real",
+            "xmin-adaptive",
+            "clauset_results",
+            dirname,
+            "paired_gof_comparison.pdf",
         )
         setting = config.setting.replace("_", r"\_")
         heading = config.appendix_heading
@@ -259,28 +353,30 @@ def write_sensitivity_fragment(configs: list) -> Path:
     return SENSITIVITY_FRAGMENT
 
 
-def required_static_inputs() -> list[tuple[str, Path]]:
+def required_static_inputs(paths: AppendixPaths) -> list[tuple[str, Path]]:
     return [
         (
             "best alternative table",
-            EXPERIMENT_DIR
+            paths.experiment_dir
             / "xmin-adaptive"
             / "clauset_results"
             / BASELINE_CONFIG
             / "across_logs_best_alternative.tex",
         ),
-        ("sensitivity configurations", SENSITIVITY_ABS / "configurations.tex"),
-        ("sensitivity summary", SENSITIVITY_ABS / "sensitivity_summary.tex"),
+        ("sensitivity configurations", paths.sensitivity_dir / "configurations.tex"),
+        ("sensitivity summary", paths.sensitivity_dir / "sensitivity_summary.tex"),
         ("appendix main.tex", MAIN_TEX),
+        ("generated paths fragment", PATHS_FRAGMENT),
     ]
 
 
 def verify_inputs(
+    paths: AppendixPaths,
     transition_logs: list[str],
     configs: list,
 ) -> list[str]:
     errors: list[str] = []
-    for label, path in required_static_inputs():
+    for label, path in required_static_inputs(paths):
         if not path.is_file():
             errors.append(f"missing {label}: {path}")
     if not transition_logs:
@@ -340,10 +436,20 @@ def compile_pdf() -> Path:
     return built_pdf
 
 
-def install_pdf(built_pdf: Path) -> Path:
-    OUTPUT_PDF.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(built_pdf, OUTPUT_PDF)
-    return OUTPUT_PDF
+def install_pdf(built_pdf: Path, paths: AppendixPaths) -> list[Path]:
+    installed: list[Path] = []
+    paths.output_pdf.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(built_pdf, paths.output_pdf)
+    installed.append(paths.output_pdf)
+    if paths.perm_pdf is not None:
+        paths.perm_pdf.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(built_pdf, paths.perm_pdf)
+        installed.append(paths.perm_pdf)
+        legacy = paths.perm_pdf.parent / "powerlaw_online_appendix.pdf"
+        if legacy.is_file():
+            legacy.unlink()
+            print(f"Removed legacy perm PDF: {legacy}")
+    return installed
 
 
 def cleanup_build_artifacts() -> list[Path]:
@@ -363,6 +469,16 @@ def cleanup_build_artifacts() -> list[Path]:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--perm",
+        action="store_true",
+        help=(
+            "Read appendix inputs from results/perm/powerlaw_statistics "
+            "(default: results/pl_stats). Still writes the PDF under "
+            f"results/pl_stats/{ONLINE_APPENDIX_PDF_NAME} and also updates the "
+            "perm copy."
+        ),
+    )
+    parser.add_argument(
         "--skip-regenerate-tex",
         action="store_true",
         help="Do not refresh .tex tables from CSVs before compiling",
@@ -377,24 +493,32 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    paths = resolve_paths(use_perm=args.perm)
     print(f"Repository root: {REPO_ROOT}")
     print(f"Appendix directory: {APPENDIX_DIR}")
-    print(f"Target PDF: {OUTPUT_PDF}")
+    print(f"Results source: {paths.results_display}")
+    print(f"Experiment directory: {paths.experiment_dir}")
+    print(f"Target PDF: {paths.output_pdf}")
+    if paths.perm_pdf is not None:
+        print(f"Perm PDF: {paths.perm_pdf}")
 
-    for note in ensure_latex_tables(regenerate=not args.skip_regenerate_tex):
+    write_paths_fragment(paths)
+    print(f"Wrote {PATHS_FRAGMENT.name}")
+
+    for note in ensure_latex_tables(paths, regenerate=not args.skip_regenerate_tex):
         print(note)
 
-    transition_logs, transition_missing = collect_transition_logs()
-    configs, config_missing = collect_sensitivity_configs()
+    transition_logs, transition_missing = collect_transition_logs(paths)
+    configs, config_missing = collect_sensitivity_configs(paths)
 
-    write_transitions_fragment(transition_logs)
-    write_sensitivity_fragment(configs)
+    write_transitions_fragment(paths, transition_logs)
+    write_sensitivity_fragment(paths, configs)
     print(
         f"Wrote {TRANSITIONS_FRAGMENT.name} ({len(transition_logs)} logs) and "
         f"{SENSITIVITY_FRAGMENT.name} ({len(configs)} configurations)"
     )
 
-    errors = verify_inputs(transition_logs, configs)
+    errors = verify_inputs(paths, transition_logs, configs)
     if transition_missing:
         print("Transition coverage gaps:")
         for item in transition_missing:
@@ -411,7 +535,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         built = compile_pdf()
-        final_pdf = install_pdf(built)
+        installed = install_pdf(built, paths)
     except Exception as exc:  # noqa: BLE001 — report clearly to the user
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -425,9 +549,13 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "Included sensitivity settings "
         f"({len(configs)}): "
-        + ", ".join(f"{c.setting}->{config_dirname(min_types=c.min_types, gof_p=c.p_gof, comparison_p=c.p_comp)}" for c in configs)
+        + ", ".join(
+            f"{c.setting}->{config_dirname(min_types=c.min_types, gof_p=c.p_gof, comparison_p=c.p_comp)}"
+            for c in configs
+        )
     )
-    print(f"Final PDF: {final_pdf}")
+    for path in installed:
+        print(f"Final PDF: {path}")
     return 0
 
 
