@@ -73,9 +73,11 @@ def _write_rows(root: Path, xmin_name: str, concept: str, rows: list[dict]) -> N
     model.mkdir(parents=True, exist_ok=True)
     frame = pd.DataFrame(rows)
     if frame["log_name"].nunique() == len(frame):
+        shard_dir = model / "log-results"
+        shard_dir.mkdir(parents=True, exist_ok=True)
         for record in rows:
             pd.DataFrame([record]).to_csv(
-                model / f"summary_{record['log_name']}.csv", index=False
+                shard_dir / f"summary_{record['log_name']}.csv", index=False
             )
     else:
         frame.to_csv(model / "summary.csv", index=False)
@@ -268,15 +270,19 @@ class SavedResultComparisonTests(unittest.TestCase):
             duplicated.to_csv(model / "summary.csv", index=False)
             variant = root / "xmin-adaptive" / "raw_results" / "variants" / "lower_bounded_power_law"
             variant.mkdir(parents=True)
+            variant_shards = variant / "log-results"
+            variant_shards.mkdir(parents=True)
+            model_shards = model / "log-results"
+            model_shards.mkdir(parents=True)
             pd.DataFrame([_row("DUP", concept="variants", gof_p=0.2)]).to_csv(
-                variant / "summary_DUP.csv", index=False
+                variant_shards / "summary_DUP.csv", index=False
             )
             # Shard and combined summary disagree for a second log's variants.
             pd.DataFrame([_row("MIX", concept="n1", gof_p=0.2)]).to_csv(
-                model / "summary_MIX.csv", index=False
+                model_shards / "summary_MIX.csv", index=False
             )
             pd.DataFrame([_row("MIX", concept="variants", gof_p=0.2)]).to_csv(
-                variant / "summary_MIX.csv", index=False
+                variant_shards / "summary_MIX.csv", index=False
             )
             pd.DataFrame([_row("MIX", concept="variants", gof_p=0.9)]).to_csv(
                 variant / "summary.csv", index=False

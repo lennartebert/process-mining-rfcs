@@ -43,7 +43,7 @@ from analyses.powerlaw_statistics.analysis_helpers.paths import (
     xmin_dir,
 )
 from utils.constants import ALL_REAL_LOG_DATASETS, PL_STATS_REAL_DIR
-from utils.csv_shards import concat_sorted_csvs, filter_shards_by_log
+from utils.csv_shards import concat_sorted_csvs, filter_shards_by_log, log_results_dir
 from utils.io.attachments import NGRAM_CONCEPTS
 from utils.powerlaw import compact_classification
 from utils.powerlaw.analyze import _finite_preference_rows
@@ -255,8 +255,9 @@ def load_concept_comparisons(
     if not model_dir.is_dir():
         return empty
     allowed = set(study_logs)
+    shard_dir = log_results_dir(model_dir)
     shard_paths = filter_shards_by_log(
-        list(model_dir.glob("comparison_*.csv")),
+        list(shard_dir.glob("comparison_*.csv")) if shard_dir.is_dir() else [],
         prefix="comparison_",
         datasets=study_logs,
     )
@@ -369,7 +370,8 @@ def _input_status(experiment_dir: Path, config: Configuration) -> str:
             f"{variants.relative_to(experiment_dir)}"
         )
     summary = variants / "summary.csv"
-    shards = list(variants.glob("summary_*.csv"))
+    shard_dir = log_results_dir(variants)
+    shards = list(shard_dir.glob("summary_*.csv")) if shard_dir.is_dir() else []
     if not summary.is_file() and not shards:
         return (
             "incomplete: missing summary tables under "

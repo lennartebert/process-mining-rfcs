@@ -101,9 +101,7 @@ results/
 `results/perm/` holds git-tracked permanent copies (manual). Other paths under
 `results/` are generated and gitignored.
 
-Dependency rule: analysis step scripts do not import each other. They may call
-shared `cli/` tools and `utils/`. Per-analysis `main.py` files only orchestrate
-ordered steps.
+Dependency rule: analysis step scripts do not import each other. They may call shared `cli/` tools and `utils/`. Per-analysis `main.py` files only orchestrate ordered steps.
 
 ## Data
 

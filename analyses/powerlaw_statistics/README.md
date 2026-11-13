@@ -120,8 +120,8 @@ sbatch .slurm/powerlaw_statistics_combine.sh real
 
 | Writer | Shard | After `--combine` (step 04) |
 |--------|-------|-----------------------------|
-| describe | `log_info_<LOG>.csv` | `log_info.csv` + `.tex` |
-| Clauset | `<concept>/<model>/{gof,comparison,summary}_<LOG>.csv` | unsuffixed CSVs |
+| describe | `log-results/log_info_<LOG>.csv` | `log_info.csv` + `.tex` |
+| Clauset | `<concept>/<model>/log-results/{gof,comparison,summary}_<LOG>.csv` | unsuffixed CSVs |
 
 Step 05 writes cross-log products for real-log experiments:
 

@@ -56,7 +56,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from utils.constants import ALL_REAL_LOG_DATASETS
-from utils.csv_shards import concat_sorted_csvs, filter_shards_by_log
+from utils.csv_shards import concat_sorted_csvs, filter_shards_by_log, log_results_dir
 from analyses.powerlaw_statistics.analysis_helpers.paths import clauset_config_dir, concept_dirname, xmin_dir, xmin_dirname
 from utils.powerlaw import LOWER_BOUNDED_POWER_LAW
 
@@ -502,8 +502,9 @@ def load_concept_results(
     if not model_dir.is_dir():
         return LoadedConcept({}, frozenset(), Path(experiment_dir).is_dir(), False)
 
+    shard_dir = log_results_dir(model_dir)
     shard_paths = filter_shards_by_log(
-        list(model_dir.glob("summary_*.csv")),
+        list(shard_dir.glob("summary_*.csv")) if shard_dir.is_dir() else [],
         prefix="summary_",
         datasets=study_logs,
     )

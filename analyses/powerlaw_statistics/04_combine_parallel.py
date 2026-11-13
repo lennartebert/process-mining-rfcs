@@ -2,9 +2,10 @@
 
 Merges shards produced by ``main.py --parallel`` (steps 01 and 03):
 
-- ``<experiment>/log_info/log_info_<LOG>.csv`` → ``log_info.csv`` + ``.tex``
-- ``<experiment>/<xmin>/raw_results/<concept>/<model>/{gof,comparison,summary}_<LOG>.csv``
-  → unsuffixed CSVs
+- ``<experiment>/log_info/log-results/log_info_<LOG>.csv``
+  → ``log_info.csv`` + ``.tex``
+- ``<experiment>/<xmin>/raw_results/<concept>/<model>/log-results/{gof,comparison,summary}_<LOG>.csv``
+  → unsuffixed CSVs in the model directory
 
 Optional ``--datasets`` keeps only shards for the listed logs.
 
@@ -25,7 +26,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from cli.log_info import IDENTITY_COLUMNS, _write_latex_from_csv
 from utils.constants import PL_STATS_REAL_DIR
-from utils.csv_shards import concat_sorted_csvs, filter_shards_by_log
+from utils.csv_shards import concat_sorted_csvs, filter_shards_by_log, log_results_dir
 from utils.io.attachments import NGRAM_CONCEPTS
 from analyses.powerlaw_statistics.analysis_helpers.paths import concept_dirname, log_info_dir, raw_results_dir
 from utils.powerlaw import DISTRIBUTION_NAMES
@@ -62,13 +63,14 @@ def _combine_glob(
 def combine_log_info(
     output_dir: Path, *, datasets: Sequence[str] | None = None
 ) -> None:
+    shard_dir = log_results_dir(output_dir)
     matches = filter_shards_by_log(
-        list(output_dir.glob("log_info_*.csv")),
+        list(shard_dir.glob("log_info_*.csv")) if shard_dir.is_dir() else [],
         prefix="log_info_",
         datasets=datasets,
     )
     if not matches:
-        print(f"Warning: no log_info_*.csv under {output_dir}")
+        print(f"Warning: no log_info_*.csv under {shard_dir}")
         return
     combined = concat_sorted_csvs(matches, sort_cols=["Log"])
     if combined is None:
@@ -95,6 +97,7 @@ def combine_clauset(
         for model_dir in sorted(path for path in concept_dir.iterdir() if path.is_dir()):
             if model_dir.name not in DISTRIBUTION_NAMES:
                 continue
+            shard_dir = log_results_dir(model_dir)
             for stem in CLASET_STEMS:
                 sort_cols = ["log_name"]
                 if stem == "comparison":
@@ -102,7 +105,7 @@ def combine_clauset(
                 elif stem == "gof":
                     sort_cols = ["log_name", "doubly_bounded_exclude_head_variants"]
                 _combine_glob(
-                    model_dir,
+                    shard_dir,
                     f"{stem}_*.csv",
                     model_dir / f"{stem}.csv",
                     sort_cols=sort_cols,

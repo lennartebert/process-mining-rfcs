@@ -288,7 +288,9 @@ class ComparisonSourceTests(unittest.TestCase):
             summary = pd.DataFrame(_comparison_rows("ACCRE", "alternative"))
             shard = pd.DataFrame(_comparison_rows("ACCRE", "power_law"))
             summary.to_csv(model / "comparison.csv", index=False)
-            shard.to_csv(model / "comparison_ACCRE.csv", index=False)
+            shard_dir = model / "log-results"
+            shard_dir.mkdir(parents=True, exist_ok=True)
+            shard.to_csv(shard_dir / "comparison_ACCRE.csv", index=False)
             loaded = load_concept_comparisons(root, "variants", ["ACCRE"])
             self.assertIsNone(loaded["ACCRE"])
 

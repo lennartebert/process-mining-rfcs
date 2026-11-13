@@ -16,6 +16,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from utils.constants import DATA_DICTIONARY_PATH, LOG_INFO_DIR
+from utils.csv_shards import log_results_dir
 from utils.io import get_data_dictionary, get_event_log_from_path, parse_count, variant_and_activity_counts
 
 
@@ -230,7 +231,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--parallel",
         action="store_true",
         help=(
-            "Write log_info_<dataset>.csv only (no LaTeX). "
+            "Write log-results/log_info_<dataset>.csv only (no LaTeX). "
             "Requires exactly one dataset."
         ),
     )
@@ -255,7 +256,9 @@ def main(argv: List[str] | None = None) -> None:
 
     if args.parallel:
         log_name = args.datasets[0]
-        csv_path = output_dir / f"log_info_{log_name}.csv"
+        shard_dir = log_results_dir(output_dir)
+        shard_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = shard_dir / f"log_info_{log_name}.csv"
         tex_path = None
     else:
         csv_path = output_dir / "log_info.csv"

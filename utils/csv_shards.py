@@ -7,6 +7,13 @@ from typing import Sequence
 
 import pandas as pd
 
+LOG_RESULTS_DIRNAME = "log-results"
+
+
+def log_results_dir(parent: Path) -> Path:
+    """Directory for per-log parallel shards next to combined CSVs."""
+    return Path(parent) / LOG_RESULTS_DIRNAME
+
 
 def filter_shards_by_log(
     matches: Sequence[Path],

@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import powerlaw
 
+from utils.csv_shards import log_results_dir
+
 from .sampling import _simulate_semiparametric_sample
 
 # ---------------------------------------------------------------------------
@@ -1087,7 +1089,9 @@ def accumulate_and_write_csvs(
     1. Append that model's rows from ``dataset_results`` (as returned by
        ``run_clauset_pipeline``) into the in-memory lists.
     2. Write sorted ``gof{suffix}.csv``, ``comparison{suffix}.csv``, and
-       ``summary{suffix}.csv`` under ``analysis_dir/<model>/``.
+       ``summary{suffix}.csv``. Combined files (empty ``file_suffix``) go under
+       ``analysis_dir/<model>/``; per-log shards go under
+       ``analysis_dir/<model>/log-results/``.
 
     Call after each unit so a crash mid-batch still leaves partial CSVs.
     Mutates ``accumulated`` in place.
@@ -1095,6 +1099,8 @@ def accumulate_and_write_csvs(
     for name in accumulated:
         dist_dir = analysis_dir / name
         dist_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = log_results_dir(dist_dir) if file_suffix else dist_dir
+        out_dir.mkdir(parents=True, exist_ok=True)
 
         accumulated[name]["gof_rows"].extend(dataset_results[name]["gof_rows"])
         accumulated[name]["comparison_frames"].append(
@@ -1120,6 +1126,6 @@ def accumulate_and_write_csvs(
             .reset_index(drop=True)
         )
 
-        gof_df.to_csv(dist_dir / f"gof{file_suffix}.csv", index=False)
-        comparison_df.to_csv(dist_dir / f"comparison{file_suffix}.csv", index=False)
-        summary_df.to_csv(dist_dir / f"summary{file_suffix}.csv", index=False)
+        gof_df.to_csv(out_dir / f"gof{file_suffix}.csv", index=False)
+        comparison_df.to_csv(out_dir / f"comparison{file_suffix}.csv", index=False)
+        summary_df.to_csv(out_dir / f"summary{file_suffix}.csv", index=False)
