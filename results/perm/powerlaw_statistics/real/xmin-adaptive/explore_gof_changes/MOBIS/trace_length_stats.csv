@@ -1,0 +1,2 @@
+log_name,n_traces,mean,median,q1,q3,min,max
+MOBIS,6555,12.701144164759725,12.0,8.0,16.0,1.0,49.0

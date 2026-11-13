@@ -1,0 +1,2 @@
+log_name,n_traces,mean,median,q1,q3,min,max
+RTFMP,150370,3.7339229899581032,5.0,2.0,5.0,2.0,20.0

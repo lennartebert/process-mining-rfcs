@@ -1,0 +1,5 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model
+MOBIS,2987,lower_bounded_power_law,exponential,2222.1557568125254,6.794079451836606e-51,lower_bounded_power_law
+MOBIS,2987,lower_bounded_power_law,lognormal,-26.887799547151005,1.3014840654194066e-09,lognormal
+MOBIS,2987,lower_bounded_power_law,stretched_exponential,-30.195669863623845,7.700576160870061e-10,stretched_exponential
+MOBIS,2987,lower_bounded_power_law,truncated_power_law,-33.97155205655217,2.220446049250313e-16,truncated_power_law

@@ -1,0 +1,5 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model
+ACCRE,65,full_range_power_law,exponential,47.05104028460271,0.0152287737877398,full_range_power_law
+ACCRE,65,full_range_power_law,lognormal,-0.2373198143344922,0.5653824923807711,lognormal
+ACCRE,65,full_range_power_law,stretched_exponential,-0.2490213180067088,0.617451843952515,stretched_exponential
+ACCRE,65,full_range_power_law,truncated_power_law,-0.2829607928053289,0.4518841363843312,truncated_power_law

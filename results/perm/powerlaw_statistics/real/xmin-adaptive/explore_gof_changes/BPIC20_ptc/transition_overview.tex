@@ -1,0 +1,32 @@
+% Type-count reconciliation for BPIC20_ptc: type and occurrence transitions across abstraction orders $k$ and trace variants.
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrrrrrrrrrrrrrrrrrr}
+\toprule
+$k$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 & 12 & 13 & 14 & 15 & 16 & 17 & 18 & 19 & 20 & TV \\
+\midrule
+$x_{\min}$ & 7 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 2 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 \\
+\addlinespace[0.35em]
+ &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+\addlinespace[0.15em]
+\rowcolor[gray]{0.85} Types before & N/A & 29 & 175 & 343 & 504 & 641 & 736 & 786 & 787 & 733 & 650 & 560 & 479 & 407 & 346 & 294 & 255 & 234 & 220 & 209 & N/A \\
+\rowcolor[gray]{0.93} + Extra from branching & N/A & 143 & 177 & 184 & 177 & 151 & 123 & 86 & 50 & 28 & 12 & 4 & 2 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & N/A \\
+\rowcolor[gray]{0.93} -- Exhausted types & N/A & 0 & 9 & 23 & 40 & 56 & 73 & 85 & 104 & 111 & 102 & 85 & 74 & 61 & 52 & 39 & 21 & 14 & 11 & 4 & N/A \\
+\rowcolor[gray]{0.93} + Introduced types & 29 & 3 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & N/A \\
+\rowcolor[gray]{0.85} Types after & 29 & 175 & 343 & 504 & 641 & 736 & 786 & 787 & 733 & 650 & 560 & 479 & 407 & 346 & 294 & 255 & 234 & 220 & 209 & 205 & 202 \\
+\rowcolor[gray]{0.93} -- Excluded because $< x_{\min}$ & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 352 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+\rowcolor[gray]{0.85} Types $\geq x_{\min}$ & 29 & 175 & 343 & 504 & 641 & 736 & 786 & 787 & 733 & 650 & 208 & 479 & 407 & 346 & 294 & 255 & 234 & 220 & 209 & 205 & 202 \\
+\addlinespace[0.35em]
+ &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+\addlinespace[0.15em]
+\rowcolor[gray]{0.85} Occurrences before & N/A & 18,246 & 20,345 & 18,246 & 16,154 & 14,062 & 11,993 & 9,946 & 7,996 & 6,237 & 4,537 & 3,592 & 2,846 & 2,492 & 2,344 & 2,229 & 2,160 & 2,132 & 2,117 & 2,106 & N/A \\
+\rowcolor[gray]{0.93} -- No successor & N/A & 0 & 2,099 & 2,092 & 2,092 & 2,069 & 2,047 & 1,950 & 1,759 & 1,700 & 945 & 746 & 354 & 148 & 115 & 69 & 28 & 15 & 11 & 4 & N/A \\
+\rowcolor[gray]{0.93} + Introduced occurrences & 18,246 & 2,099 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & N/A \\
+\rowcolor[gray]{0.85} Occurrences after & 18,246 & 20,345 & 18,246 & 16,154 & 14,062 & 11,993 & 9,946 & 7,996 & 6,237 & 4,537 & 3,592 & 2,846 & 2,492 & 2,344 & 2,229 & 2,160 & 2,132 & 2,117 & 2,106 & 2,102 & 2,099 \\
+\rowcolor[gray]{0.93} -- Excluded because $< x_{\min}$ & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 352 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+\rowcolor[gray]{0.85} Occurrences $\geq x_{\min}$ & 18,246 & 20,345 & 18,246 & 16,154 & 14,062 & 11,993 & 9,946 & 7,996 & 6,237 & 4,537 & 3,240 & 2,846 & 2,492 & 2,344 & 2,229 & 2,160 & 2,132 & 2,117 & 2,106 & 2,102 & 2,099 \\
+\bottomrule
+\end{tabular}
+}
+\begin{flushleft}\footnotesize
+Top block: fitted $x_{\min}$. Middle block: type-count reconciliation from abstraction order $k-1$ to $k$. Bottom block: occurrence reconciliation; \quad TV = Trace Variants; \quad N/A marks inapplicable cells.
+\end{flushleft}

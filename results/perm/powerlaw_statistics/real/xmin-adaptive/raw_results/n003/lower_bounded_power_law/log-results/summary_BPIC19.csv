@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,xmin,xmax,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,fit_valid,best_other_distribution,alpha,KS_D,gof_p,n_success,n_failed,gof_kind
+BPIC19,results/attachments/n3/BPIC19/attachments.csv.gz,1595923,2787,681,0.2443487621097954,185.0,,307,0.1101542877646214,0.9718006445173106,2.8461263845497986,True,lognormal,1.6289520535144413,0.0299723874567644,0.3536,2500,0,refit_all_parameters

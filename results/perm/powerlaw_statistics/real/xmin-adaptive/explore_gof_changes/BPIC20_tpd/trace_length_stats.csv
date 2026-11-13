@@ -1,0 +1,2 @@
+log_name,n_traces,mean,median,q1,q3,min,max
+BPIC20_tpd,7065,12.254918612880397,11.0,9.0,15.0,3.0,90.0

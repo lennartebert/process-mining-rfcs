@@ -1,0 +1,5 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model
+BPIC20_tpd,1221,lower_bounded_power_law,exponential,731.6806865120132,2.8673954815025584e-15,lower_bounded_power_law
+BPIC20_tpd,1221,lower_bounded_power_law,lognormal,-1.1952327985080693,0.2435881817481354,lognormal
+BPIC20_tpd,1221,lower_bounded_power_law,stretched_exponential,0.6852973985245523,0.8144887759633671,lower_bounded_power_law
+BPIC20_tpd,1221,lower_bounded_power_law,truncated_power_law,-2.766905406672317,0.0186524373789445,truncated_power_law

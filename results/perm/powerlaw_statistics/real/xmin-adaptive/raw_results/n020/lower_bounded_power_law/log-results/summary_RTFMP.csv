@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,xmin,xmax,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,fit_valid,best_other_distribution,alpha,KS_D,gof_p,n_success,n_failed,gof_kind
+RTFMP,results/attachments/n20/RTFMP/attachments.csv.gz,150372,233,102,0.43776824034334766,2.0,,131,0.5622317596566524,0.9993216822280744,4.450880070807271,True,lognormal,1.4819525820543336,0.03777734785340259,0.5124,2500,0,refit_all_parameters

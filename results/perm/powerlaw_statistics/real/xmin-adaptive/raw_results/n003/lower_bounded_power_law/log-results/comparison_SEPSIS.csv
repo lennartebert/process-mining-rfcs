@@ -1,0 +1,5 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model
+SEPSIS,114,lower_bounded_power_law,exponential,15.54737788518952,0.0761723093432262,lower_bounded_power_law
+SEPSIS,114,lower_bounded_power_law,lognormal,-3.010829209468082,0.0965479867335785,lognormal
+SEPSIS,114,lower_bounded_power_law,stretched_exponential,-3.5002278535291618,0.0878548074150527,stretched_exponential
+SEPSIS,114,lower_bounded_power_law,truncated_power_law,-4.391423849125272,0.0030407612715545,truncated_power_law

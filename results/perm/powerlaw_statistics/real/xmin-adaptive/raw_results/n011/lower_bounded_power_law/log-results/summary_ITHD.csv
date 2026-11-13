@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,xmin,xmax,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,fit_valid,best_other_distribution,alpha,KS_D,gof_p,n_success,n_failed,gof_kind
+ITHD,results/attachments/n11/ITHD/attachments.csv.gz,4642,277,177,0.6389891696750902,2.0,,100,0.3610108303249097,0.9618698836708316,3.0729847446279304,True,lognormal,1.7240721497287148,0.0497513217718924,0.3572,2500,0,refit_all_parameters

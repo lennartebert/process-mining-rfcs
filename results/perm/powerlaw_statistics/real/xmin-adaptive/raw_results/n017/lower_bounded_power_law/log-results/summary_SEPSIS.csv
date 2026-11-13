@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,xmin,xmax,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,fit_valid,best_other_distribution,alpha,KS_D,gof_p,n_success,n_failed,gof_kind
+SEPSIS,results/attachments/n17/SEPSIS/attachments.csv.gz,3967,3756,3687,0.981629392971246,2.0,,69,0.018370607028753993,0.07058230400806655,1.2430380486862944,True,lognormal,2.6622813982797506,0.05544650669190565,0.4096,2500,0,refit_all_parameters

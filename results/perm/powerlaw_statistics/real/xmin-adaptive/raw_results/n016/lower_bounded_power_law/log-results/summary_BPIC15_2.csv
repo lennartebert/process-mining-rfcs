@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,xmin,xmax,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,fit_valid,best_other_distribution,alpha,KS_D,gof_p,n_success,n_failed,gof_kind
+BPIC15_2,results/attachments/n16/BPIC15_2/attachments.csv.gz,33682,31092,29565,0.950887688151293,15.0,,6,0.0001929756850636,0.0029392553886348,0.1856365769619116,False,,,,,,,skipped_invalid_fit

@@ -1,0 +1,5 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model
+ACCRE,17,lower_bounded_power_law,exponential,7.983269246212153,0.0497768282929409,lower_bounded_power_law
+ACCRE,17,lower_bounded_power_law,lognormal,-0.0146142752347591,0.8882225142449711,lognormal
+ACCRE,17,lower_bounded_power_law,stretched_exponential,0.0090949414380969,0.9740602777395084,lower_bounded_power_law
+ACCRE,17,lower_bounded_power_law,truncated_power_law,-0.0916267134876724,0.6685920774505902,truncated_power_law

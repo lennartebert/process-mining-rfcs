@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,xmin,xmax,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,fit_valid,best_other_distribution,alpha,KS_D,gof_p,n_success,n_failed,gof_kind
+BPIC20_rfp,results/attachments/n4/BPIC20_rfp/attachments.csv.gz,29982,141,43,0.3049645390070922,9.0,,66,0.4680851063829787,0.9949636448535788,2.842331823771105,True,stretched_exponential,1.4709232288377485,0.0876043776205661,0.0344,2500,0,refit_all_parameters

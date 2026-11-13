@@ -1,0 +1,2 @@
+log_name,input_path,n_occurrences,n_types,n_singletons,singleton_share,xmin,xmax,n_fitted_types,fitted_type_share,fitted_occurrence_share,log_range,fit_valid,best_other_distribution,alpha,KS_D,gof_p,n_success,n_failed,gof_kind
+MOBIS,results/attachments/n3/MOBIS/attachments.csv.gz,83256,331,85,0.256797583081571,1.0,,331,1.0,1.0,3.647187297895989,True,stretched_exponential,1.3250731880643327,0.0806707320098559,0.0,2500,0,refit_all_parameters

@@ -1,0 +1,5 @@
+log_name,n_fitted_types,model_1,model_2,R,p,preferred_model
+ITHD,226,full_range_power_law,exponential,441.31188623228974,5.908216013379597e-05,full_range_power_law
+ITHD,226,full_range_power_law,lognormal,-10.117868190065154,0.2270004476991958,lognormal
+ITHD,226,full_range_power_law,stretched_exponential,1.3130102243069914,0.2764213635850213,full_range_power_law
+ITHD,226,full_range_power_law,truncated_power_law,-0.0119235432770643,0.877274627799089,truncated_power_law

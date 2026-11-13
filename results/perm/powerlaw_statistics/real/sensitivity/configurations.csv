@@ -1,0 +1,9 @@
+setting,xmin,min_types,p_gof,p_comp
+baseline,adaptive,50,0.10,0.10
+min_types_0,adaptive,0,0.10,0.10
+min_types_15,adaptive,15,0.10,0.10
+min_types_30,adaptive,30,0.10,0.10
+gof_005,adaptive,50,0.05,0.10
+gof_020,adaptive,50,0.20,0.10
+comp_005,adaptive,50,0.10,0.05
+comp_020,adaptive,50,0.10,0.20

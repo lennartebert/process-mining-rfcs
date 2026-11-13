@@ -1,0 +1,2 @@
+log_name,n_traces,mean,median,q1,q3,min,max
+BPIC20_rfp,6886,5.343595701423178,5.0,5.0,6.0,1.0,20.0

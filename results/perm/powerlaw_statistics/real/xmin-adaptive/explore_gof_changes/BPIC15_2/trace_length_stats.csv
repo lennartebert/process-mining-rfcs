@@ -1,0 +1,2 @@
+log_name,n_traces,mean,median,q1,q3,min,max
+BPIC15_2,832,53.31009615384615,54.0,44.0,62.0,1.0,132.0

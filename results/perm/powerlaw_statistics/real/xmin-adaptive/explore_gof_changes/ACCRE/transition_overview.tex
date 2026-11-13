@@ -1,0 +1,32 @@
+% Type-count reconciliation for ACCRE: type and occurrence transitions across abstraction orders $k$ and trace variants.
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrrrrrrrrrrrrrrrrrr}
+\toprule
+$k$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 & 12 & 13 & 14 & 15 & 16 & 17 & 18 & 19 & 20 & TV \\
+\midrule
+$x_{\min}$ & 12 & 3 & 3 & 3 & 1 & 1 & 1 & 1 & 1 & 2 & 4 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 \\
+\addlinespace[0.35em]
+ &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+\addlinespace[0.15em]
+\rowcolor[gray]{0.85} Types before & N/A & 16 & 98 & 156 & 184 & 195 & 183 & 163 & 140 & 117 & 105 & 96 & 87 & 82 & 79 & 76 & 74 & 72 & 70 & 69 & N/A \\
+\rowcolor[gray]{0.93} + Extra from branching & N/A & 75 & 72 & 59 & 54 & 39 & 27 & 22 & 10 & 9 & 3 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & N/A \\
+\rowcolor[gray]{0.93} -- Exhausted types & N/A & 0 & 14 & 31 & 43 & 51 & 47 & 45 & 33 & 21 & 12 & 9 & 5 & 3 & 3 & 2 & 2 & 2 & 1 & 1 & N/A \\
+\rowcolor[gray]{0.93} + Introduced types & 16 & 7 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & N/A \\
+\rowcolor[gray]{0.85} Types after & 16 & 98 & 156 & 184 & 195 & 183 & 163 & 140 & 117 & 105 & 96 & 87 & 82 & 79 & 76 & 74 & 72 & 70 & 69 & 68 & 65 \\
+\rowcolor[gray]{0.93} -- Excluded because $< x_{\min}$ & 2 & 36 & 79 & 105 & 0 & 0 & 0 & 0 & 0 & 71 & 79 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+\rowcolor[gray]{0.85} Types $\geq x_{\min}$ & 14 & 62 & 77 & 79 & 195 & 183 & 163 & 140 & 117 & 34 & 17 & 87 & 82 & 79 & 76 & 74 & 72 & 70 & 69 & 68 & 65 \\
+\addlinespace[0.35em]
+ &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+\addlinespace[0.15em]
+\rowcolor[gray]{0.85} Occurrences before & N/A & 1,945 & 2,343 & 1,945 & 1,553 & 1,161 & 795 & 659 & 547 & 481 & 443 & 430 & 420 & 415 & 412 & 409 & 407 & 405 & 403 & 402 & N/A \\
+\rowcolor[gray]{0.93} -- No successor & N/A & 0 & 398 & 392 & 392 & 366 & 136 & 112 & 66 & 38 & 13 & 10 & 5 & 3 & 3 & 2 & 2 & 2 & 1 & 1 & N/A \\
+\rowcolor[gray]{0.93} + Introduced occurrences & 1,945 & 398 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & N/A \\
+\rowcolor[gray]{0.85} Occurrences after & 1,945 & 2,343 & 1,945 & 1,553 & 1,161 & 795 & 659 & 547 & 481 & 443 & 430 & 420 & 415 & 412 & 409 & 407 & 405 & 403 & 402 & 401 & 398 \\
+\rowcolor[gray]{0.93} -- Excluded because $< x_{\min}$ & 10 & 44 & 96 & 127 & 0 & 0 & 0 & 0 & 0 & 71 & 97 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+\rowcolor[gray]{0.85} Occurrences $\geq x_{\min}$ & 1,935 & 2,299 & 1,849 & 1,426 & 1,161 & 795 & 659 & 547 & 481 & 372 & 333 & 420 & 415 & 412 & 409 & 407 & 405 & 403 & 402 & 401 & 398 \\
+\bottomrule
+\end{tabular}
+}
+\begin{flushleft}\footnotesize
+Top block: fitted $x_{\min}$. Middle block: type-count reconciliation from abstraction order $k-1$ to $k$. Bottom block: occurrence reconciliation; \quad TV = Trace Variants; \quad N/A marks inapplicable cells.
+\end{flushleft}
