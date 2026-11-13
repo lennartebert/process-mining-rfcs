@@ -13,7 +13,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from cli import log_info
 from cli.log_info import ALL_STATS, DEFAULT_STATS
-from utils.constants import POWERLAW_STATISTICS_REAL_DIR
+from utils.constants import PL_STATS_REAL_DIR
+from analyses.powerlaw_statistics.analysis_helpers.paths import log_info_dir
 
 # powerlaw_statistics describe always includes trace-length stats by default.
 POWERLAW_STATISTICS_DEFAULT_STATS: List[str] = [
@@ -42,8 +43,11 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=str(POWERLAW_STATISTICS_REAL_DIR),
-        help=f"Output directory for log_info.csv/.tex (default: {POWERLAW_STATISTICS_REAL_DIR})",
+        default=str(PL_STATS_REAL_DIR),
+        help=(
+            "Experiment directory. log_info.csv/.tex are written under "
+            f"log_info/ (default experiment: {PL_STATS_REAL_DIR})"
+        ),
     )
     parser.add_argument(
         "--force-recalculate",
@@ -66,7 +70,7 @@ def main(argv: List[str] | None = None) -> None:
         "--stats",
         *args.stats,
         "--output-dir",
-        args.output_dir,
+        str(log_info_dir(Path(args.output_dir))),
     ]
     if args.force_recalculate:
         forward.append("--force-recalculate")

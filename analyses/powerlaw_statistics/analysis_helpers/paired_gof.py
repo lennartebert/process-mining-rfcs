@@ -38,14 +38,11 @@ differences across logs, not Monte Carlo uncertainty in a single GOF p-value.
 
 from __future__ import annotations
 
-import importlib.util
-import json
 import math
 import sys
 import warnings
 from collections import Counter
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -54,7 +51,13 @@ from scipy import stats
 from statsmodels.stats.contingency_tables import mcnemar
 from statsmodels.stats.multitest import multipletests
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from utils.constants import ALL_REAL_LOG_DATASETS
+from utils.csv_shards import concat_sorted_csvs, filter_shards_by_log
+from analyses.powerlaw_statistics.analysis_helpers.paths import clauset_config_dir, concept_dirname, xmin_dir, xmin_dirname
 from utils.powerlaw import LOWER_BOUNDED_POWER_LAW
 
 # Sensitivity grid. ``None`` is the adaptively estimated xmin experiment.
@@ -83,14 +86,8 @@ PAPER_STATISTIC_ROWS = (
     "mcnemar_p_holm_k_le_3",
 )
 
-# Results-directory names are the saved xmin policy. Fitted xmin is not used
-# to choose the experiment: an adaptive fit that selected xmin=1 stays in
-# ``real`` and is not treated as the fixed-xmin=1 run.
-EXPERIMENT_DIRECTORY = {
-    1: "real_xmin1",
-    2: "real_xmin2",
-    None: "real",
-}
+# The xmin folder name is the saved policy. Fitted xmin is not used to choose
+# the run: an adaptive fit that selected xmin=1 stays in ``xmin-adaptive``.
 XMIN_POLICY = {1: "fixed", 2: "fixed", None: "adaptive"}
 
 CI_METHOD = "newcombe_1998_method_10"
@@ -98,8 +95,6 @@ CI_MULTIPLICITY = "pointwise"
 GOF_BOUNDARY = "gof_p >= gof_threshold"
 MODEL = LOWER_BOUNDED_POWER_LAW
 PROVENANCE_DIRECTORY = "results_directory_name"
-PROVENANCE_SIDECAR = "experiment_provenance.json"
-SIDECAR_NAME = "experiment_provenance.json"
 
 # Newcombe 1998, Table III, method 10. Cells (e, f, g, h) follow the paper:
 # e = both positive, f = first only, g = second only, h = neither.
@@ -207,65 +202,6 @@ AUDIT_COLUMNS = [
     "outcome_variants",
 ]
 
-METHODS_NOTE = """\
-Paired comparison of power-law GOF non-rejection.
-
-The unit of pairing is the event log. Each row uses only logs that are
-eligible at both the selected abstraction order and the trace-variant level.
-A log that is ineligible at either endpoint is excluded from both sides.
-Eligibility is recomputed from the saved fit and GOF result
-(valid fit/GOF and n_fitted_types at or above the support cutoff). It is not
-taken from previously stored A–E labels, so a result labelled A at a cutoff
-of 30 can be eligible at 15. A saved result with no GOF p-value is unavailable.
-
-GOF non-rejection means gof_p >= the configuration's GOF threshold. gof_p is
-a probability in [0, 1], not a percentage. This threshold is separate from
-the significance level of the McNemar test. Whether an alternative
-distribution is preferred does not change the binary outcome.
-
-The difference is the non-rejection proportion at trace variants minus the
-proportion at k, in percentage points in this view. A positive value means
-non-rejection is more frequent at the trace-variant level. The 95% interval
-is Newcombe's paired score method, method 10 of Newcombe (Statistics in
-Medicine, 1998; PMID 9839354). Intervals are pointwise. They are not adjusted
-for the five comparisons, and an interval that excludes zero need not agree
-with the Holm-adjusted exact test.
-
-The test is the two-sided exact McNemar test. Holm adjustment is applied
-across the five k-versus-variants comparisons within each of the 18
-configurations. The family size stays five when a comparison is unavailable.
-Where significance is marked (*), it is Holm-adjusted p < 0.05. The 18
-configurations are a sensitivity analysis; all of them are reported.
-
-Different logs are treated as independent units. Related benchmark logs and
-non-random selection of the study collection limit generalisation. GOF
-non-rejection does not establish that a power law is true or that it is the
-best description. A non-significant difference does not establish equivalence.
-These intervals concern differences across logs, not Monte Carlo uncertainty
-in the individual GOF p-values.
-
-Experiment identity comes from the saved results directory (real = adaptive
-xmin, real_xmin1 = fixed xmin 1, real_xmin2 = fixed xmin 2), not from the
-fitted xmin. An adaptive fit that selected xmin=1 is not a fixed-xmin=1 run.
-Trace variants are taken from the same experiment as k. Missing results are
-reported and are not replaced by another experiment.
-"""
-
-
-@lru_cache(maxsize=1)
-def _combine_module():
-    """Load step 04 so shard concatenation stays the combine-stage loader."""
-    path = Path(__file__).resolve().parent / "04_combine_parallel.py"
-    spec = importlib.util.spec_from_file_location("powerlaw_combine_parallel", path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load {path}")
-    module = importlib.util.module_from_spec(spec)
-    # Dataclasses look the module up in sys.modules while the class is created.
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
 def format_xmin_setting(xmin_setting: int | None) -> str:
     """Serialise a grid setting. ``None`` is the adaptive experiment."""
     if xmin_setting is None:
@@ -275,60 +211,6 @@ def format_xmin_setting(xmin_setting: int | None) -> str:
 
 def concept_for_k(k: int) -> str:
     return f"n{int(k)}"
-
-
-def experiment_directory(statistics_root: Path, xmin_setting: int | None) -> Path:
-    try:
-        name = EXPERIMENT_DIRECTORY[xmin_setting]
-    except KeyError as exc:
-        raise ValueError(f"unsupported xmin_setting {xmin_setting!r}") from exc
-    return Path(statistics_root) / name
-
-
-def identify_xmin_setting(experiment_dir: Path) -> tuple[int | None, str]:
-    """Return ``(xmin_setting, provenance)`` for a results directory.
-
-    The policy is the saved experiment configuration. Fitted xmin values are
-    not consulted. A sidecar ``experiment_provenance.json`` overrides the
-    directory name when present; a conflict between the two is an error.
-    """
-    directory = Path(experiment_dir)
-    from_name = EXPERIMENT_DIRECTORY_SETTING.get(directory.name)
-    sidecar = directory / SIDECAR_NAME
-    if sidecar.is_file():
-        setting = _xmin_setting_from_sidecar(sidecar)
-        if from_name is not _ABSENT and from_name != setting:
-            raise ValueError(
-                f"incompatible xmin provenance for {directory}: "
-                f"directory name implies {format_xmin_setting(from_name)}, "
-                f"{SIDECAR_NAME} implies {format_xmin_setting(setting)}"
-            )
-        return setting, PROVENANCE_SIDECAR
-    if from_name is _ABSENT:
-        raise ValueError(
-            f"no saved xmin provenance for {directory}; "
-            "refusing to infer the experiment from fitted xmin"
-        )
-    return from_name, PROVENANCE_DIRECTORY
-
-
-_ABSENT = object()
-EXPERIMENT_DIRECTORY_SETTING = {name: setting for setting, name in EXPERIMENT_DIRECTORY.items()}
-
-
-def _xmin_setting_from_sidecar(path: Path) -> int | None:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    policy = str(payload.get("xmin_policy", "")).strip().lower()
-    if policy == "adaptive":
-        if payload.get("xmin") not in (None, ""):
-            raise ValueError(f"{path} sets xmin_policy=adaptive but also sets xmin")
-        return None
-    if policy == "fixed":
-        xmin = payload.get("xmin")
-        if xmin is None:
-            raise ValueError(f"{path} sets xmin_policy=fixed without xmin")
-        return int(xmin)
-    raise ValueError(f"{path} has unrecognised xmin_policy {policy!r}")
 
 
 def wilson_score_interval(successes: int, n: int, z: float) -> tuple[float, float]:
@@ -613,14 +495,15 @@ def load_concept_results(
     Shards and ``summary.csv`` must agree when both contain a log. Duplicate
     rows are retained so the caller can reject them instead of choosing one.
     """
-    model_dir = Path(experiment_dir) / concept / MODEL
+    model_dir = (
+        Path(experiment_dir) / "raw_results" / concept_dirname(concept) / MODEL
+    )
     allowed = set(study_logs)
     if not model_dir.is_dir():
         return LoadedConcept({}, frozenset(), Path(experiment_dir).is_dir(), False)
 
-    combine = _combine_module()
-    shard_paths = combine._filter_shards_by_log(
-        model_dir.glob("summary_*.csv"),
+    shard_paths = filter_shards_by_log(
+        list(model_dir.glob("summary_*.csv")),
         prefix="summary_",
         datasets=study_logs,
     )
@@ -632,7 +515,7 @@ def load_concept_results(
                 message="Behavior when concatenating bool-dtype",
                 category=FutureWarning,
             )
-            shard_frame = combine._concat_sorted_csvs(shard_paths, sort_cols=["log_name"])
+            shard_frame = concat_sorted_csvs(shard_paths, sort_cols=["log_name"])
     else:
         shard_frame = None
     summary_path = model_dir / "summary.csv"
@@ -768,20 +651,12 @@ def build_paired_gof_tables(
     audit_rows: list[dict] = []
 
     for xmin_setting in xmin_settings:
-        directory = experiment_directory(root, xmin_setting)
-        try:
-            confirmed, provenance = identify_xmin_setting(directory)
-        except ValueError as exc:
-            confirmed, provenance = xmin_setting, PROVENANCE_DIRECTORY
-            provenance_error = str(exc)
-        else:
+        directory = xmin_dir(root, xmin_setting)
+        provenance = PROVENANCE_DIRECTORY
+        if directory.is_dir():
             provenance_error = ""
-            if confirmed != xmin_setting:
-                provenance_error = (
-                    f"experiment {directory.name} is xmin setting "
-                    f"{format_xmin_setting(confirmed)}, not "
-                    f"{format_xmin_setting(xmin_setting)}"
-                )
+        else:
+            provenance_error = f"Missing xmin directory {directory.name}."
         policy = XMIN_POLICY[xmin_setting]
         setting_label = format_xmin_setting(xmin_setting)
         needed = [concept_for_k(k) for k in ks] + [REFERENCE_CONCEPT]
@@ -957,7 +832,7 @@ def _comparison_status(
     if provenance_error:
         notes.append(provenance_error if provenance_error.endswith(".") else provenance_error + ".")
     elif not directory.is_dir():
-        notes.append(f"Missing experiment directory {directory.name}.")
+        notes.append(f"Missing xmin directory {directory.name}.")
     else:
         if not k_loaded.results_found:
             notes.append(f"Missing {MODEL} results for {concept} in {directory.name}.")
@@ -1195,12 +1070,12 @@ def _check_audit_matches_summary(summary: pd.DataFrame, audit: pd.DataFrame) -> 
 
 def _check_experiments_are_not_mixed(summary: pd.DataFrame, audit: pd.DataFrame) -> None:
     for _, row in summary.iterrows():
-        expected = EXPERIMENT_DIRECTORY[
+        expected = xmin_dirname(
             None if row["xmin_setting"] == "None" else int(row["xmin_setting"])
-        ]
+        )
         if row["source_experiment"] != expected:
             raise AssertionError(
-                f"xmin setting {row['xmin_setting']} used experiment {row['source_experiment']}"
+                f"xmin setting {row['xmin_setting']} used folder {row['source_experiment']}"
             )
         if row["xmin_policy"] != XMIN_POLICY[
             None if row["xmin_setting"] == "None" else int(row["xmin_setting"])
@@ -1208,11 +1083,11 @@ def _check_experiments_are_not_mixed(summary: pd.DataFrame, audit: pd.DataFrame)
             raise AssertionError("xmin policy does not match the experiment")
     included = audit[audit["included_in_paired"] == True]  # noqa: E712
     for _, row in included.iterrows():
-        expected = EXPERIMENT_DIRECTORY[
+        expected = xmin_dirname(
             None if row["xmin_setting"] == "None" else int(row["xmin_setting"])
-        ]
+        )
         if row["source_experiment"] != expected:
-            raise AssertionError("paired log uses a different experiment from its xmin setting")
+            raise AssertionError("paired log uses a different xmin folder from its setting")
         if row["xmin_setting"] == "None":
             continue
         locked = float(row["xmin_setting"])
@@ -1221,120 +1096,6 @@ def _check_experiments_are_not_mixed(summary: pd.DataFrame, audit: pd.DataFrame)
                 raise AssertionError(
                     "fixed-xmin comparison includes a fitted xmin from another policy"
                 )
-
-
-def format_paired_results(summary: pd.DataFrame) -> str:
-    """Readable view organised by xmin setting, support cutoff, and GOF threshold."""
-    lines = [METHODS_NOTE.rstrip(), ""]
-    for xmin_setting in _unique(summary["xmin_setting"]):
-        policy = summary.loc[summary["xmin_setting"] == xmin_setting, "xmin_policy"].iloc[0]
-        if xmin_setting == "None":
-            heading = "xmin setting: None (adaptive; xmin estimated for each fit)"
-        else:
-            heading = f"xmin setting: {xmin_setting} (fixed xmin={xmin_setting})"
-        lines.append(f"== {heading}; policy={policy} ==")
-        subset = summary[summary["xmin_setting"] == xmin_setting]
-        for min_fitted in _unique(subset["min_fitted_types"]):
-            lines.append(f"-- support cutoff: min_fitted_types = {int(min_fitted)} --")
-            cutoff = subset[subset["min_fitted_types"] == min_fitted]
-            for threshold in _unique(cutoff["gof_threshold"]):
-                lines.append(
-                    f"---- GOF threshold {float(threshold):.2f} "
-                    f"(non-rejection if {GOF_BOUNDARY.replace('gof_threshold', f'{float(threshold):.2f}')}) ----"
-                )
-                block = cutoff[cutoff["gof_threshold"] == threshold].sort_values("k")
-                lines.extend(_format_block(block))
-                lines.append("")
-        lines.append("")
-    lines.append(
-        "* Holm-adjusted p < 0.05. Confidence intervals are pointwise and are "
-        "not multiplicity-adjusted."
-    )
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def _unique(series: pd.Series) -> list:
-    seen = []
-    for value in series:
-        if value not in seen:
-            seen.append(value)
-    return seen
-
-
-def _format_block(block: pd.DataFrame) -> list[str]:
-    headers = [
-        "Comparison",
-        "Paired N",
-        "Not rejected at k",
-        "Not rejected at variants",
-        "Rejected→not rejected",
-        "Not rejected→rejected",
-        "Difference, pp [95% CI]",
-        "Raw p",
-        "Holm-adjusted p",
-    ]
-    body = []
-    notes = []
-    for _, row in block.iterrows():
-        total = int(row["N"])
-        if total == 0:
-            diff = "NA"
-            raw_p = "NA"
-            holm_p = "NA"
-            not_k = "NA"
-            not_v = "NA"
-            to_variant = "NA"
-            to_k = "NA"
-        else:
-            diff = (
-                f"{100 * float(row['paired_difference']):+.2f} "
-                f"[{100 * float(row['ci95_lower']):+.2f}, "
-                f"{100 * float(row['ci95_upper']):+.2f}]"
-            )
-            raw_p = _format_p(row["mcnemar_p"])
-            significant = (
-                not _is_missing(row["mcnemar_p_holm"]) and float(row["mcnemar_p_holm"]) < 0.05
-            )
-            holm_p = _format_p(row["mcnemar_p_holm"], star=significant)
-            not_k = str(int(row["n10"]) + int(row["n11"]))
-            not_v = str(int(row["n01"]) + int(row["n11"]))
-            to_variant = str(int(row["n01"]))
-            to_k = str(int(row["n10"]))
-        body.append(
-            [
-                f"k={int(row['k'])} vs variants",
-                str(total),
-                not_k,
-                not_v,
-                to_variant,
-                to_k,
-                diff,
-                raw_p,
-                holm_p,
-            ]
-        )
-        notes.append(f"k={int(row['k'])}: {row['status']}. {row['notes']}")
-    widths = [
-        max(len(headers[index]), *(len(cells[index]) for cells in body))
-        for index in range(len(headers))
-    ]
-    def _render(cells: Sequence[str]) -> str:
-        return "  ".join(cell.ljust(widths[index]) for index, cell in enumerate(cells)).rstrip()
-
-    rendered = [_render(headers), _render(["-" * width for width in widths])]
-    rendered.extend(_render(cells) for cells in body)
-    rendered.append("Notes:")
-    rendered.extend(f"- {note}" for note in notes)
-    return rendered
-
-
-def _format_p(value: object, *, star: bool = False) -> str:
-    if _is_missing(value):
-        return "NA"
-    text = f"{float(value):.4g}"
-    if star:
-        text += " *"
-    return text
 
 
 def paper_table_from_summary(summary: pd.DataFrame) -> pd.DataFrame:
@@ -1429,51 +1190,65 @@ def validate_paper_table(table: pd.DataFrame, summary: pd.DataFrame) -> None:
                     raise AssertionError(f"{column} {statistic} must be NaN when N=0")
 
 
-def write_paired_gof_paper_table(
-    output_dir: Path, *, statistics_root: Path | None = None
+def write_paired_gof_for_config(
+    experiment_dir: Path,
+    *,
+    xmin_setting: int | None,
+    min_fitted_types: int,
+    gof_threshold: float,
+    comparison_p: float,
+    study_logs: Sequence[str] | None = None,
 ) -> Path | None:
-    """Write the k=1..20 paper CSV for adaptive xmin, 30 types, threshold 0.10.
+    """Write k=1..20 paired GOF files into one Clauset configuration folder.
 
-    The three Holm rows are alternative comparison families. A paper has to
-    justify which family supports its main inference. Choosing the family
-    because that adjustment is significant is not a confirmation.
+    Comparison p does not enter the test. It is part of the folder name so the
+    files sit with the A–E tables for that compose run. The three Holm rows
+    are alternative families recomputed from the raw p-values.
     """
-    output_dir = Path(output_dir)
-    if output_dir.name not in EXPERIMENT_DIRECTORY_SETTING:
+    experiment_dir = Path(experiment_dir)
+    if not experiment_dir.name.startswith("real"):
         print(
-            "Skipping paired GOF paper table "
-            f"({output_dir.name} is not a real-log xmin experiment)"
+            "Skipping paired GOF "
+            f"({experiment_dir.name} is not a real-log experiment)"
         )
         return None
-    root = Path(statistics_root) if statistics_root is not None else output_dir.parent
     summary, audit = build_paired_gof_tables(
-        root,
-        xmin_settings=(PAPER_XMIN_SETTING,),
+        experiment_dir,
+        study_logs=study_logs,
+        xmin_settings=(xmin_setting,),
         ks=PAPER_KS,
-        min_fitted_types_grid=(PAPER_MIN_FITTED_TYPES,),
-        gof_thresholds=(PAPER_GOF_THRESHOLD,),
+        min_fitted_types_grid=(int(min_fitted_types),),
+        gof_thresholds=(float(gof_threshold),),
     )
     validate_paired_tables(summary, audit)
     table = paper_table_from_summary(summary)
     validate_paper_table(table, summary)
-    destination = output_dir / "paired_gof"
+    destination = clauset_config_dir(
+        experiment_dir,
+        xmin_setting,
+        min_types=int(min_fitted_types),
+        gof_p=float(gof_threshold),
+        comparison_p=float(comparison_p),
+    )
     destination.mkdir(parents=True, exist_ok=True)
+    summary.to_csv(destination / "paired_gof_summary.csv", index=False)
+    audit.to_csv(destination / "paired_gof_audit.csv", index=False)
     csv_path = destination / PAPER_TABLE_NAME
     _write_paper_csv(table, csv_path)
     print(
-        "Paired GOF paper table: xmin=None (adaptive), "
-        f"min_fitted_types={PAPER_MIN_FITTED_TYPES}, "
-        f"gof_threshold={PAPER_GOF_THRESHOLD:.2f}, k=1..20 vs variants."
+        "Paired GOF: "
+        f"xmin={format_xmin_setting(xmin_setting)}, "
+        f"min_fitted_types={int(min_fitted_types)}, "
+        f"gof_threshold={float(gof_threshold):.2f}, "
+        f"k=1..20 vs variants -> {destination}"
     )
     print(
         "Holm rows k_le_20, k_le_10, and k_le_3 are alternative family "
         "definitions recomputed from the raw p-values. They are not "
-        "independent confirmations of a finding."
+        "independent confirmations of a finding. Comparison p does not "
+        "enter the paired outcome."
     )
-    for _, row in summary.sort_values("k").iterrows():
-        print(f"  k={int(row['k'])}: {row['status']}. {row['notes']}")
-    print(f"Paired GOF paper table -> {csv_path}")
-    return csv_path
+    return destination
 
 
 def _to_percentage_points(value: object) -> float:
@@ -1530,35 +1305,3 @@ def _format_paper_cell(value: object, *, integer: bool) -> str:
     return repr(float(value))
 
 
-def write_paired_gof_comparisons(output_dir: Path) -> Path | None:
-    """Write paired GOF outputs when ``output_dir`` is a real xmin experiment.
-
-    The tables always cover the full xmin grid, using sibling experiment
-    directories under the same power-law statistics root. Smoke-test and
-    synthetic logs are not included.
-    """
-    output_dir = Path(output_dir)
-    if output_dir.name not in EXPERIMENT_DIRECTORY_SETTING:
-        print(
-            "Skipping paired GOF comparisons "
-            f"({output_dir.name} is not a real-log xmin experiment)"
-        )
-        return None
-    statistics_root = output_dir.parent
-    summary, audit = build_paired_gof_tables(statistics_root)
-    validate_paired_tables(summary, audit)
-    destination = output_dir / "paired_gof"
-    destination.mkdir(parents=True, exist_ok=True)
-    summary_path = destination / "paired_gof_summary.csv"
-    audit_path = destination / "paired_gof_audit.csv"
-    text_path = destination / "paired_gof_results.txt"
-    summary.to_csv(summary_path, index=False)
-    audit.to_csv(audit_path, index=False)
-    text_path.write_text(format_paired_results(summary), encoding="utf-8")
-    print(
-        "Paired GOF comparisons: "
-        f"{len(summary)} configuration-comparison rows, "
-        f"{len(audit)} audit rows -> {destination}"
-    )
-    write_paired_gof_paper_table(output_dir, statistics_root=statistics_root)
-    return destination

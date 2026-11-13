@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib.util
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -10,9 +12,13 @@ import numpy as np
 import pandas as pd
 
 from utils.powerlaw.analyze import (
+    CLASSIFICATION_CELL_COLORS,
+    CLASSIFICATION_LABEL_TEXT_COLORS,
+    CLASSIFICATION_LABELS,
     DOUBLY_BOUNDED_POWER_LAW,
     FULL_RANGE_POWER_LAW,
     LOWER_BOUNDED_POWER_LAW,
+    format_classification_label,
     _classify,
     _descriptive_stats,
     _failed_gof,
@@ -27,6 +33,7 @@ from utils.powerlaw.analyze import (
     compact_classification,
     decide_and_record,
     llr_preference,
+    select_best_distribution,
 )
 from utils.powerlaw.sampling import _sample_fitted_power_law
 
@@ -182,6 +189,106 @@ def _preference_rows(
             }
         )
     return rows
+
+
+class ClassificationLabelTests(unittest.TestCase):
+    def test_display_names(self) -> None:
+        self.assertEqual(
+            CLASSIFICATION_LABELS,
+            {
+                "A": "Ineligible for assessment",
+                "B": "PL rejected",
+                "C": "PL not rejected; alternative favored",
+                "D": "PL not rejected; PL favored",
+                "E": "PL not rejected; no decisive preference",
+            },
+        )
+
+    def test_cell_colors(self) -> None:
+        self.assertEqual(
+            CLASSIFICATION_CELL_COLORS,
+            {
+                "A": "FFFFFF",
+                "B": "EA4646",
+                "C": "9670BD",
+                "D": "8FEB32",
+                "E": "19C8C8",
+            },
+        )
+        self.assertEqual(
+            CLASSIFICATION_LABEL_TEXT_COLORS,
+            {
+                "A": "#111111",
+                "B": "#FFFFFF",
+                "C": "#FFFFFF",
+                "D": "#111111",
+                "E": "#111111",
+            },
+        )
+
+    def test_format_styles(self) -> None:
+        self.assertEqual(
+            format_classification_label("A"),
+            "A = Ineligible for assessment",
+        )
+        self.assertEqual(
+            format_classification_label("A", style="paren"),
+            "A) Ineligible for assessment",
+        )
+        self.assertEqual(
+            format_classification_label("B", style="colon"),
+            "B: PL rejected",
+        )
+
+    def test_select_best_distribution_pl_vs_alternative(self) -> None:
+        pl_wins = _comparison_df(
+            _preference_rows(
+                exponential=(2.0, 0.01),
+                lognormal=(1.5, 0.02),
+                stretched_exponential=(1.2, 0.03),
+            )
+        )
+        name, r_val, p_val, significant = select_best_distribution(pl_wins)
+        self.assertEqual(name, "power_law")
+        self.assertIsNone(r_val)
+        self.assertIsNone(p_val)
+        self.assertTrue(significant)
+
+        alt_wins = _comparison_df(
+            _preference_rows(
+                exponential=(1.0, 0.2),
+                lognormal=(-2.0, 0.01),
+                stretched_exponential=(0.5, 0.4),
+            )
+        )
+        name, r_val, p_val, significant = select_best_distribution(alt_wins)
+        self.assertEqual(name, "lognormal")
+        self.assertEqual(r_val, -2.0)
+        self.assertEqual(p_val, 0.01)
+        self.assertTrue(significant)
+
+    def test_scaling_cell_accepts_current_names(self) -> None:
+        path = (
+            Path(__file__).resolve().parents[1]
+            / "analyses"
+            / "powerlaw_statistics"
+            / "06_compose_results.py"
+        )
+        spec = importlib.util.spec_from_file_location("compose_results_06", path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        classify = module.classification_to_scaling_cell
+        for code, label in CLASSIFICATION_LABELS.items():
+            self.assertEqual(classify(label), code)
+            self.assertEqual(classify(code), code)
+        self.assertEqual(
+            classify(
+                "(1) >= 30 fitted types; (2) lower bounded power law not plausible (p<0.1); "
+                "(3) alternative preferred"
+            ),
+            "B",
+        )
 
 
 class ClassifyTests(unittest.TestCase):
@@ -637,7 +744,9 @@ class DecideAndRecordTests(unittest.TestCase):
         self.assertTrue(pd.isna(out["summary_row"]["gof_p"]))
         self.assertEqual(out["evaluation"]["gof_kind"], "skipped_invalid_fit")
         self.assertEqual(int(out["comparison_df"]["n_fitted_types"].iloc[0]), 5)
-        self.assertIn("invalid", out["summary_row"]["classification"])
+        self.assertFalse(bool(out["summary_row"]["fit_valid"]))
+        self.assertNotIn("classification", out["summary_row"])
+        self.assertNotIn("interpretation", out["comparison_df"].columns)
 
     def test_valid_path_schema(self) -> None:
         data = _sample_fitted_power_law(

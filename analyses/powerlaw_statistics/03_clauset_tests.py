@@ -2,7 +2,9 @@
 
 Runs ``cli.clauset_power_law`` once per concept (variants, n1..n20 by default),
 reading attachments from ``results/attachments/`` and writing under
-``results/powerlaw_statistics/real/<concept>/<model>/``.
+``results/pl_stats/<experiment>/<xmin>/raw_results/<concept>/<model>/``.
+N-gram folders are zero-padded (``n001``). Concept ids on the command line
+stay ``n1``.
 
 Model policy:
 - ``variants``: full_range, lower_bounded, and doubly_bounded
@@ -22,7 +24,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from cli import clauset_power_law
-from utils.constants import ATTACHMENTS_DIR, POWERLAW_STATISTICS_REAL_DIR
+from utils.constants import ATTACHMENTS_DIR, PL_STATS_REAL_DIR
+from analyses.powerlaw_statistics.analysis_helpers.paths import concept_dirname, raw_results_dir, write_seed
 from utils.io.attachments import NGRAM_CONCEPTS
 from utils.powerlaw import DISTRIBUTION_NAMES, LOWER_BOUNDED_POWER_LAW
 from utils.timing import format_duration, timing_print
@@ -58,7 +61,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=None,
-        help=f"Power-law statistics results root for Clauset outputs (default: {POWERLAW_STATISTICS_REAL_DIR})",
+        help=f"Experiment directory for Clauset outputs (default: {PL_STATS_REAL_DIR})",
     )
     parser.add_argument(
         "--n-bootstraps",
@@ -101,7 +104,9 @@ def main(argv: List[str] | None = None) -> None:
     attachments_root = (
         Path(args.attachments_dir) if args.attachments_dir else ATTACHMENTS_DIR
     )
-    output_root = Path(args.output_dir) if args.output_dir else POWERLAW_STATISTICS_REAL_DIR
+    experiment_dir = Path(args.output_dir) if args.output_dir else PL_STATS_REAL_DIR
+    write_seed(experiment_dir, args.random_seed)
+    output_root = raw_results_dir(experiment_dir, args.xmin)
 
     step_t0 = time.perf_counter()
     concept_elapsed: list[tuple[str, float]] = []
@@ -115,7 +120,7 @@ def main(argv: List[str] | None = None) -> None:
             "--inputs",
             *inputs,
             "--analysis-name",
-            concept,
+            concept_dirname(concept),
             "--output-dir",
             str(output_root),
             "--n-bootstraps",

@@ -6,7 +6,7 @@ from a finite activity alphabet. Writes
 
 Not wired into ``main.py``. Run directly:
 
-    python analyses/powerlaw_statistics/07_generate_synthetic_monkey.py \\
+    python analyses/powerlaw_statistics/exploratory/generate_synthetic_monkey.py \\
         --n-activities 24 --n-traces 20000 --trace-length 20
 """
 
@@ -24,7 +24,7 @@ from typing import List, Mapping, Sequence
 from pm4py.objects.log.exporter.xes import exporter as xes_exporter
 from pm4py.objects.log.obj import Event, EventLog, Trace
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 

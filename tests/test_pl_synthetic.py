@@ -21,7 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import TEST_ATTACHMENTS_DIR, TEST_POWERLAW_STATISTICS_DIR, TEST_RESULTS_DIR
+from utils.constants import TEST_ATTACHMENTS_DIR, TEST_PL_STATS_DIR, TEST_RESULTS_DIR
+from analyses.powerlaw_statistics.analysis_helpers.paths import concept_dirname, raw_results_dir
 from utils.io.attachments import (
     REQUIRED_ATTACHMENT_COLUMNS,
     load_attachments,
@@ -45,7 +46,7 @@ N_BOOTSTRAPS_E2E = 1000
 ATTACHMENT_TIME = "1970-01-01T00:00:00"
 
 ATTACHMENTS_ROOT = REPO_ROOT / TEST_ATTACHMENTS_DIR
-POWERLAW_STATISTICS_ROOT = REPO_ROOT / TEST_POWERLAW_STATISTICS_DIR
+POWERLAW_STATISTICS_ROOT = REPO_ROOT / TEST_PL_STATS_DIR
 TRUTH_PATH = REPO_ROOT / TEST_RESULTS_DIR / "synthetic_truth.json"
 CONCEPTS = ["variants"]
 
@@ -182,7 +183,12 @@ def run_synthetic_e2e(*, n_bootstraps: int = N_BOOTSTRAPS_E2E) -> None:
     rows: list[dict] = []
     for concept in CONCEPTS:
         for model in clauset_tests.models_for_concept(concept):
-            summary_path = POWERLAW_STATISTICS_ROOT / concept / model / "summary.csv"
+            summary_path = (
+                raw_results_dir(POWERLAW_STATISTICS_ROOT, None)
+                / concept_dirname(concept)
+                / model
+                / "summary.csv"
+            )
             assert summary_path.exists(), f"missing {summary_path}"
             summary = pd.read_csv(summary_path)
             assert len(summary) == 1
@@ -199,7 +205,12 @@ def run_synthetic_e2e(*, n_bootstraps: int = N_BOOTSTRAPS_E2E) -> None:
                 f"{model} alpha {alpha:.3f} diverges more than 0.5 from {ALPHA_TRUE}"
             )
 
-            comparison = pd.read_csv(POWERLAW_STATISTICS_ROOT / concept / model / "comparison.csv")
+            comparison = pd.read_csv(
+                raw_results_dir(POWERLAW_STATISTICS_ROOT, None)
+                / concept_dirname(concept)
+                / model
+                / "comparison.csv"
+            )
             p = pd.to_numeric(comparison["p"], errors="coerce")
             finite_p = p[np.isfinite(p)]
             if not finite_p.empty:

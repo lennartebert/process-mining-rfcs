@@ -67,7 +67,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         type=str,
         required=True,
         help="Subfolder name under the output root for this run "
-        "(e.g. n1 -> results/powerlaw_statistics/real/n1/<model>/)",
+        "(e.g. n001 -> results/pl_stats/real/xmin-adaptive/raw_results/n001/<model>/)",
     )
     parser.add_argument(
         "--output-dir",
@@ -267,10 +267,10 @@ def main(argv: List[str] | None = None) -> None:
                 print(
                     f"  {name}: alpha={float(alpha):.4f}, "
                     f"gof_p={float(gof_p):.4f}, "
-                    f"classification={summary['classification']}{extra}"
+                    f"fit_valid={bool(summary.get('fit_valid'))}{extra}"
                 )
             else:
-                print(f"  {name}: classification={summary['classification']}")
+                print(f"  {name}: fit_valid={summary.get('fit_valid')}")
 
         if args.parallel:
             shard_acc: dict[str, dict[str, list]] = {

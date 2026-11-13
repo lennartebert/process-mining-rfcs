@@ -2,10 +2,13 @@
 
 Trace length and variant identity follow attachment extraction
 (``trace_completion_data`` and the activity classifier). No power-law fit
-or goodness-of-fit test is run. For order k >= 2 the extractor wraps each
-trace as (START, activities, END) and emits one node when k >= L + 2, or
-L + 3 - k sliding windows otherwise. That is ``max(1, L + 3 - k)``
-occurrences per case.
+or goodness-of-fit test is run.
+
+A case is complete when it contributes one occurrence. Order k = 1 does not
+wrap the trace, so that is activity length L = 1 and the case contributes L
+occurrences. For k >= 2 the extractor wraps each trace as (START, activities,
+END) and emits one node when L + 2 <= k, or L + 3 - k sliding windows
+otherwise. That is ``max(1, L + 3 - k)`` occurrences per case.
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ from typing import Iterable, Mapping, Sequence
 import numpy as np
 import pandas as pd
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -28,14 +31,40 @@ from utils.constants import (
     ATTACHMENTS_DIR,
     DATA_DICTIONARY_PATH,
 )
+from analyses.powerlaw_statistics.analysis_helpers.paths import (
+    SATURATION_DIRNAME,
+    concept_dirname,
+    raw_results_dir,
+    saturation_dir,
+)
 from utils.powerlaw import LOWER_BOUNDED_POWER_LAW
 
-SATURATION_KS = (5, 10, 15, 20)
-REAL_EXPERIMENT_DIRECTORIES = frozenset({"real", "real_xmin1", "real_xmin2"})
+SATURATION_KS = (1, 5, 10, 15, 20)
+CROSS_LOG_KS = (5, 10, 15, 20)
 STATUS_OK = "ok"
 STATUS_MISSING = "missing_log"
 STATUS_EMPTY = "empty_log"
 MEDIAN_ROW_LABEL = "Median across logs"
+SUMMARY_FILENAME = "saturation_summary.csv"
+CROSS_LOG_FILENAME = "cross_log_saturation.csv"
+STALE_TEXT_FILENAME = "saturation_results.txt"
+CROSS_LOG_LOG_COLUMN = "Log"
+CROSS_LOG_OCCURRENCE_COLUMN = "Complete-case occurrence share, k=20"
+CROSS_LOG_EXCESS_COLUMN = "Excess occurrences per case, k=20"
+CROSS_LOG_SUMMARY_BLANK = "—"
+CROSS_LOG_THRESHOLDS = (50, 60, 70, 80, 90, 100)
+
+K_TABLE_COLUMNS = [
+    "Log",
+    "Cases",
+    "Trace variants",
+    "Median length",
+    "Max length",
+    "Cases complete (%)",
+    "Variants complete (%)",
+    "Occurrences from complete cases (%)",
+    "Excess occurrences per case",
+]
 
 SUMMARY_COLUMNS = [
     "log_name",
@@ -78,31 +107,6 @@ _SHARE_COLUMNS = (
     "median_trace_length",
 )
 
-METHODS_NOTE = """\
-Cross-log saturation of trace n-grams.
-
-Trace length L counts activity events and excludes the START and END markers
-that extraction adds for orders k >= 2. N is the number of traces attachment
-extraction keeps (non-empty traces with a completion timestamp). V is the
-number of distinct activity sequences among those traces. Median length is
-case-weighted: each case counts once. The median row is the unweighted median
-across logs, not a pooled percentage. Case counts, variant counts, and
-trace-length columns are left blank on that row.
-
-Every real-world study log is included. The requested xmin setting, fitted-type
-cutoff, and GOF threshold do not enter these counts. A log that cannot be read,
-or that has no usable traces, is left unknown rather than filled with zeros.
-
-At order k a case is complete when L + 2 <= k, and a variant is complete when
-its length meets the same bound. Each case contributes max(1, L + 3 - k)
-occurrences. A complete trace contributes one occurrence per case, and that
-contribution stays one at every higher order. Excess occurrences per case
-equals (O_k - N) / N. A high share of complete cases does not mean that most
-extracted occurrences come from complete cases, because an incomplete case
-contributes more than one occurrence.
-"""
-
-
 @dataclass(frozen=True)
 class LengthProfile:
     """Per-case and per-variant lengths for one study log."""
@@ -115,10 +119,46 @@ class LengthProfile:
 
 
 def occurrence_weight(length: int, k: int) -> int:
-    """Occurrences one case of activity-length ``length`` contributes at order k."""
-    if k < 2:
-        raise ValueError(f"occurrence weight is defined for wrapped n-grams, got k={k}")
-    return max(1, int(length) + 3 - int(k))
+    """Occurrences one case of activity-length ``length`` contributes at order k.
+
+    Order 1 does not wrap: the weight is L. Orders k >= 2 wrap with START and
+    END and contribute ``max(1, L + 3 - k)`` windows.
+    """
+    length = int(length)
+    order = int(k)
+    if length < 0:
+        raise ValueError(f"trace length must be non-negative, got {length}")
+    if order == 1:
+        return length
+    if order < 2:
+        raise ValueError(
+            "occurrence weight is defined for k = 1 and wrapped n-grams k >= 2, "
+            f"got k={order}"
+        )
+    return max(1, length + 3 - order)
+
+
+def max_complete_trace_length(k: int) -> int:
+    """Largest activity length that contributes one occurrence at order k.
+
+    k = 1 keeps a trace of one activity. k >= 2 keeps L <= k - 2, because the
+    wrapped trace has length L + 2.
+    """
+    order = int(k)
+    if order == 1:
+        return 1
+    if order < 2:
+        raise ValueError(f"completion threshold is defined for k >= 1, got k={order}")
+    return order - 2
+
+
+def _occurrence_weights(lengths: np.ndarray, k: int) -> np.ndarray:
+    count = int(lengths.size)
+    return np.fromiter(
+        (occurrence_weight(int(length), k) for length in lengths),
+        dtype=int,
+        count=count,
+    )
 
 
 def profile_from_sequences(
@@ -147,7 +187,7 @@ def diagnose_profile(profile: LengthProfile, k: int) -> dict[str, object]:
     row: dict[str, object] = {
         "log_name": profile.log_name,
         "k": int(k),
-        "max_complete_trace_length": int(k) - 2,
+        "max_complete_trace_length": max_complete_trace_length(k),
         "status": profile.status,
         "notes": profile.notes,
         "extracted_occurrences": pd.NA,
@@ -177,14 +217,14 @@ def diagnose_profile(profile: LengthProfile, k: int) -> dict[str, object]:
     n_variants = int(variants.size)
     if n_cases == 0 or n_variants == 0:
         raise ValueError(f"{profile.log_name} is marked ok but has no lengths")
-    weights = np.fromiter(
-        (occurrence_weight(int(length), k) for length in lengths),
-        dtype=int,
-        count=n_cases,
-    )
-    n_complete_cases = int(np.count_nonzero(lengths + 2 <= k))
-    n_complete_variants = int(np.count_nonzero(variants + 2 <= k))
+    weights = _occurrence_weights(lengths, k)
+    variant_weights = _occurrence_weights(variants, k)
+    # Complete means the case or variant contributes exactly one occurrence.
+    n_complete_cases = int(np.count_nonzero(weights == 1))
+    n_complete_variants = int(np.count_nonzero(variant_weights == 1))
     total = int(weights.sum())
+    if total <= 0:
+        raise ValueError(f"{profile.log_name} k={k} has no occurrences")
     excess = total - n_cases
     row.update(
         {
@@ -308,10 +348,13 @@ def validate_saturation_frame(
                 share = float(row[share_name])
                 if share < -1e-12 or share > 1 + 1e-12:
                     raise AssertionError(f"{log_name} k={k} {share_name} is outside [0, 1]")
-            if int(row["max_complete_trace_length"]) != int(k) - 2:
+            if int(row["max_complete_trace_length"]) != max_complete_trace_length(int(k)):
                 raise AssertionError(f"{log_name} k={k} completion threshold disagrees")
             max_length = int(row["max_trace_length"])
-            if int(k) >= max_length + 2:
+            saturated = (
+                int(k) == 1 and max_length <= 1 and total == n_cases
+            ) or (int(k) >= 2 and int(k) >= max_length + 2)
+            if saturated:
                 if not (
                     n_complete_cases == n_cases
                     and n_complete_variants == n_variants
@@ -354,47 +397,157 @@ def validate_saturation_frame(
             }
 
 
-def format_saturation_results(
-    frame: pd.DataFrame, *, ks: Sequence[int] = SATURATION_KS
-) -> str:
-    """Four readable tables, one per order, in the frame's log order."""
-    lines = [METHODS_NOTE.rstrip(), ""]
-    log_order = _log_order(frame)
+def k_table_filename(k: int) -> str:
+    """CSV name for one order, e.g. ``k1.csv`` or ``k20.csv``."""
+    return f"k{int(k)}.csv"
+
+
+def build_k_table(frame: pd.DataFrame, k: int) -> pd.DataFrame:
+    """One order's table: a row per log, then the unweighted median across logs.
+
+    Shares are percentage points. Count and length cells are blank for a log
+    with no usable traces, and on the median row. The median is not a pooled
+    percentage: each usable log counts once.
+    """
+    order = int(k)
+    block = _block_for_k(frame, order)
+    rows = [_k_table_row(row) for _, row in block.iterrows()]
+    rows.append(_k_table_median_row(block))
+    table = pd.DataFrame(rows, columns=K_TABLE_COLUMNS)
+    for column in ("Cases", "Trace variants", "Max length"):
+        table[column] = pd.to_numeric(table[column], errors="coerce").astype("Int64")
+    for column in (
+        "Median length",
+        "Cases complete (%)",
+        "Variants complete (%)",
+        "Occurrences from complete cases (%)",
+        "Excess occurrences per case",
+    ):
+        table[column] = pd.to_numeric(table[column], errors="coerce")
+    return table
+
+
+def build_cross_log_table(
+    frame: pd.DataFrame, *, ks: Sequence[int] = CROSS_LOG_KS
+) -> pd.DataFrame:
+    """Wide case-completion table plus threshold summary rows.
+
+    Each study log is one row. The k columns are the percent of cases complete
+    at that order, formatted to one decimal place. The last two columns are
+    the complete-case occurrence share and the excess occurrences per case at
+    k = 20. Summary rows count logs whose displayed case-completion percent
+    meets 50, 60, 70, 80, 90, and 100. A log with no usable traces is listed with blank
+    cells and is left out of those counts.
+    """
+    orders = [int(k) for k in ks]
+    if 20 not in orders:
+        raise ValueError(f"cross-log table needs k=20, got {orders}")
+    columns = [
+        CROSS_LOG_LOG_COLUMN,
+        *[f"k={k}" for k in orders],
+        CROSS_LOG_OCCURRENCE_COLUMN,
+        CROSS_LOG_EXCESS_COLUMN,
+    ]
+    by_k = {k: _block_for_k(frame, k) for k in orders}
+    log_names = _log_order(frame)
+    rows: list[dict[str, str]] = []
+    for log_name in log_names:
+        row = {column: "" for column in columns}
+        row[CROSS_LOG_LOG_COLUMN] = log_name
+        at_20 = by_k[20].loc[log_name]
+        if at_20["status"] == STATUS_OK:
+            row[CROSS_LOG_OCCURRENCE_COLUMN] = _format_percent_cell(
+                at_20["complete_occurrence_share"]
+            )
+            row[CROSS_LOG_EXCESS_COLUMN] = _format_excess_cell(
+                at_20["excess_occurrences_per_case"]
+            )
+        for k in orders:
+            record = by_k[k].loc[log_name]
+            if record["status"] == STATUS_OK:
+                row[f"k={k}"] = _format_percent_cell(record["complete_case_share"])
+        rows.append(row)
+    for threshold in CROSS_LOG_THRESHOLDS:
+        summary = {column: "" for column in columns}
+        summary[CROSS_LOG_LOG_COLUMN] = f"Logs with ≥{threshold}% of cases complete"
+        summary[CROSS_LOG_OCCURRENCE_COLUMN] = CROSS_LOG_SUMMARY_BLANK
+        summary[CROSS_LOG_EXCESS_COLUMN] = CROSS_LOG_SUMMARY_BLANK
+        for k in orders:
+            block = by_k[k]
+            usable = block[block["status"] == STATUS_OK]
+            n_logs = int(len(usable))
+            n_meeting = int(
+                sum(
+                    _shown_percent_value(share) >= threshold
+                    for share in usable["complete_case_share"]
+                )
+            )
+            summary[f"k={k}"] = _format_threshold_cell(n_meeting, n_logs)
+        rows.append(summary)
+    return pd.DataFrame(rows, columns=columns)
+
+
+def write_saturation_tables(
+    frame: pd.DataFrame,
+    destination: Path,
+    *,
+    ks: Sequence[int] = SATURATION_KS,
+) -> None:
+    """Write the long summary, one CSV per order, and the wide cross-log table."""
+    destination = Path(destination)
+    destination.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(destination / SUMMARY_FILENAME, index=False)
     for k in ks:
-        block = frame[frame["k"] == int(k)].set_index("log_name", drop=False)
-        block = block.loc[log_order]
-        lines.append(_format_k_table(block, int(k)))
-        lines.append("")
-    lines.append(_extraction_footer(frame))
-    return "\n".join(lines).rstrip() + "\n"
+        build_k_table(frame, int(k)).to_csv(
+            destination / k_table_filename(k), index=False
+        )
+    if all(int(k) in {int(order) for order in ks} for k in CROSS_LOG_KS):
+        build_cross_log_table(frame).to_csv(
+            destination / CROSS_LOG_FILENAME, index=False
+        )
+    stale = destination / STALE_TEXT_FILENAME
+    if stale.is_file():
+        stale.unlink()
+
+
+def _raw_results_for_counts(experiment_dir: Path) -> Path | None:
+    """Prefer the adaptive xmin folder; occurrence totals do not depend on xmin."""
+    preferred = raw_results_dir(experiment_dir, None)
+    if preferred.is_dir():
+        return preferred
+    matches = sorted(experiment_dir.glob("xmin*/raw_results"))
+    for candidate in matches:
+        if candidate.is_dir():
+            return candidate
+    return None
 
 
 def write_saturation_diagnostics(output_dir: Path) -> Path | None:
     """Write saturation tables for a real-log experiment directory.
 
     The counts do not depend on xmin or on the GOF grid. They are written
-    into the experiment directory that combine is merging.
+    once, under ``<experiment>/log_info/saturation/``, not inside an xmin folder.
     """
     output_dir = Path(output_dir)
-    if output_dir.name not in REAL_EXPERIMENT_DIRECTORIES:
+    if not output_dir.name.startswith("real"):
         print(
             "Skipping saturation diagnostics "
-            f"({output_dir.name} is not a real-log xmin experiment)"
+            f"({output_dir.name} is not a real-log experiment)"
         )
         return None
     print(f"Saturation diagnostics: loading study logs for {output_dir.name}")
     profiles = load_study_profiles(ALL_REAL_LOG_DATASETS)
+    raw_results = _raw_results_for_counts(output_dir)
     extracted = load_extracted_occurrences(
-        output_dir, [profile.log_name for profile in profiles], SATURATION_KS
+        raw_results if raw_results is not None else output_dir,
+        [profile.log_name for profile in profiles],
+        SATURATION_KS,
     )
     frame = build_saturation_frame(profiles, extracted)
     validate_saturation_frame(frame)
-    destination = output_dir / "saturation"
-    destination.mkdir(parents=True, exist_ok=True)
-    csv_path = destination / "saturation_summary.csv"
-    text_path = destination / "saturation_results.txt"
-    frame.to_csv(csv_path, index=False)
-    text_path.write_text(format_saturation_results(frame), encoding="utf-8")
+    _migrate_legacy_saturation_dir(output_dir)
+    destination = saturation_dir(output_dir)
+    write_saturation_tables(frame, destination)
     print(f"Saturation diagnostics: {len(frame)} log-order rows -> {destination}")
     return destination
 
@@ -487,7 +640,12 @@ def load_extracted_occurrences(
 
 
 def _summary_occurrence_totals(output_dir: Path, k: int) -> dict[str, int]:
-    path = output_dir / f"n{k}" / LOWER_BOUNDED_POWER_LAW / "summary.csv"
+    path = (
+        output_dir
+        / concept_dirname(f"n{k}")
+        / LOWER_BOUNDED_POWER_LAW
+        / "summary.csv"
+    )
     if not path.exists():
         return {}
     frame = pd.read_csv(path, usecols=["log_name", "n_occurrences"])
@@ -511,110 +669,73 @@ def _count_attachment_rows(path: Path) -> int:
         return sum(1 for line in handle if line.strip())
 
 
-def _format_k_table(block: pd.DataFrame, k: int) -> str:
-    threshold = k - 2
-    caption = (
-        f"k = {k}. A case or variant is complete when L <= {threshold} "
-        f"(L + 2 <= {k}). Complete traces contribute one occurrence per case "
-        "and remain unchanged at higher orders. Excess occurrences per case "
-        "equals (O_k - N) / N. High case-completion coverage does not imply "
-        "that most extracted occurrences come from complete cases."
-    )
-    headers = [
-        "Log",
-        "Cases",
-        "Trace variants",
-        "Median length",
-        "Max length",
-        "Cases complete (%)",
-        "Variants complete (%)",
-        "Occurrences from complete cases (%)",
-        "Excess occurrences per case",
-    ]
-    numeric = [False, True, True, True, True, True, True, True, True]
-    body = [_display_row(row) for _, row in block.iterrows()]
-    body.append(_median_row(block))
-    lines = [caption, _align_table(headers, body, numeric)]
-    unavailable = block[block["status"] != STATUS_OK]
-    if not unavailable.empty:
-        lines.append("Unavailable logs (values left unknown):")
-        for _, row in unavailable.iterrows():
-            lines.append(f"- {row['log_name']}: {row['status']}. {row['notes']}")
-    return "\n".join(lines)
-
-
-def _display_row(row: pd.Series) -> list[str]:
-    if row["status"] != STATUS_OK:
-        blank = [""] * 8
-        return [str(row["log_name"]), *blank]
-    return [
-        str(row["log_name"]),
-        _format_count(row["n_cases"]),
-        _format_count(row["n_variants"]),
-        _format_length(row["median_trace_length"]),
-        _format_count(row["max_trace_length"]),
-        _format_percent(row["complete_case_share"]),
-        _format_percent(row["complete_variant_share"]),
-        _format_percent(row["complete_occurrence_share"]),
-        _format_excess(row["excess_occurrences_per_case"]),
-    ]
-
-
-def _median_row(block: pd.DataFrame) -> list[str]:
-    usable = block[block["status"] == STATUS_OK]
-    return [
-        MEDIAN_ROW_LABEL,
-        "",
-        "",
-        "",
-        "",
-        _format_percent(_unweighted_median(usable["complete_case_share"])),
-        _format_percent(_unweighted_median(usable["complete_variant_share"])),
-        _format_percent(_unweighted_median(usable["complete_occurrence_share"])),
-        _format_excess(_unweighted_median(usable["excess_occurrences_per_case"])),
-    ]
-
-
-def _align_table(
-    headers: Sequence[str], rows: Sequence[Sequence[str]], numeric: Sequence[bool]
-) -> str:
-    widths = [
-        max(len(headers[index]), *(len(row[index]) for row in rows))
-        for index in range(len(headers))
-    ]
-
-    def render(cells: Sequence[str]) -> str:
-        padded = []
-        for index, cell in enumerate(cells):
-            if numeric[index]:
-                padded.append(cell.rjust(widths[index]))
-            else:
-                padded.append(cell.ljust(widths[index]))
-        return "  ".join(padded).rstrip()
-
-    rule = ["-" * width for width in widths]
-    lines = [render(headers), render(rule)]
-    lines.extend(render(row) for row in rows)
-    return "\n".join(lines)
-
-
-def _extraction_footer(frame: pd.DataFrame) -> str:
-    ok = frame[frame["status"] == STATUS_OK]
-    unavailable = ok[ok["extracted_occurrences"].isna()]
-    if unavailable.empty and not ok.empty:
-        return (
-            "Formula occurrence totals match the saved extracted totals "
-            "for every study log and order where a saved total exists."
+def _migrate_legacy_saturation_dir(experiment: Path) -> None:
+    """Move a pre-log_info ``<experiment>/saturation`` folder under ``log_info``."""
+    legacy = Path(experiment) / SATURATION_DIRNAME
+    destination = saturation_dir(experiment)
+    if not legacy.is_dir():
+        return
+    if legacy.resolve() == destination.resolve():
+        return
+    if destination.exists():
+        raise FileExistsError(
+            f"cannot move {legacy} to {destination}: destination already exists"
         )
-    if unavailable.empty:
-        return "No study log had a usable trace set, so no extracted total was compared."
-    labels = [
-        f"{row.log_name} k={int(row.k)}"
-        for row in unavailable.itertuples(index=False)
-    ]
-    return (
-        "Extracted occurrence totals were unavailable for: " + ", ".join(labels) + "."
-    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    legacy.rename(destination)
+    print(f"Saturation diagnostics: moved {legacy} -> {destination}")
+
+
+def _block_for_k(frame: pd.DataFrame, k: int) -> pd.DataFrame:
+    order = int(k)
+    block = frame[frame["k"] == order]
+    if block.empty:
+        raise ValueError(f"saturation frame has no rows for k={order}")
+    log_order = _log_order(frame)
+    indexed = block.set_index("log_name", drop=False)
+    missing = [log_name for log_name in log_order if log_name not in indexed.index]
+    if missing:
+        raise ValueError(f"k={order} is missing logs: {missing}")
+    return indexed.loc[log_order]
+
+
+def _k_table_row(row: pd.Series) -> dict[str, object]:
+    blank: dict[str, object] = {column: pd.NA for column in K_TABLE_COLUMNS}
+    blank["Log"] = str(row["log_name"])
+    if row["status"] != STATUS_OK:
+        return blank
+    return {
+        "Log": str(row["log_name"]),
+        "Cases": int(row["n_cases"]),
+        "Trace variants": int(row["n_variants"]),
+        "Median length": float(row["median_trace_length"]),
+        "Max length": int(row["max_trace_length"]),
+        "Cases complete (%)": 100 * float(row["complete_case_share"]),
+        "Variants complete (%)": 100 * float(row["complete_variant_share"]),
+        "Occurrences from complete cases (%)": 100 * float(row["complete_occurrence_share"]),
+        "Excess occurrences per case": float(row["excess_occurrences_per_case"]),
+    }
+
+
+def _k_table_median_row(block: pd.DataFrame) -> dict[str, object]:
+    usable = block[block["status"] == STATUS_OK]
+    return {
+        "Log": MEDIAN_ROW_LABEL,
+        "Cases": pd.NA,
+        "Trace variants": pd.NA,
+        "Median length": pd.NA,
+        "Max length": pd.NA,
+        "Cases complete (%)": _percent_points(_unweighted_median(usable["complete_case_share"])),
+        "Variants complete (%)": _percent_points(
+            _unweighted_median(usable["complete_variant_share"])
+        ),
+        "Occurrences from complete cases (%)": _percent_points(
+            _unweighted_median(usable["complete_occurrence_share"])
+        ),
+        "Excess occurrences per case": _unweighted_median(
+            usable["excess_occurrences_per_case"]
+        ),
+    }
 
 
 def _unweighted_median(values: Iterable[object]) -> float | None:
@@ -624,31 +745,34 @@ def _unweighted_median(values: Iterable[object]) -> float | None:
     return float(np.median(usable))
 
 
-def _format_count(value: object) -> str:
-    if pd.isna(value):
+def _percent_points(share: float | None) -> float:
+    if share is None or pd.isna(share):
+        return pd.NA
+    return 100 * float(share)
+
+
+def _shown_percent_value(share: object) -> float:
+    """One-decimal percentage, matching the cross-log cell text."""
+    return float(f"{100 * float(share):.1f}")
+
+
+def _format_percent_cell(share: object) -> str:
+    if share is None or pd.isna(share):
         return ""
-    return f"{int(value):,}"
+    return f"{_shown_percent_value(share):.1f}%"
 
 
-def _format_length(value: object) -> str:
-    if pd.isna(value):
-        return ""
-    number = float(value)
-    if number.is_integer():
-        return f"{int(number):,}"
-    return f"{number:,.1f}"
-
-
-def _format_percent(value: object) -> str:
-    if value is None or pd.isna(value):
-        return ""
-    return f"{100 * float(value):.1f}"
-
-
-def _format_excess(value: object) -> str:
+def _format_excess_cell(value: object) -> str:
     if value is None or pd.isna(value):
         return ""
     return f"{float(value):.2f}"
+
+
+def _format_threshold_cell(n_meeting: int, n_logs: int) -> str:
+    if n_logs <= 0:
+        return ""
+    percent = 100 * n_meeting / n_logs
+    return f"{n_meeting}/{n_logs} ({percent:.1f}%)"
 
 
 def _join_notes(existing: object, extra: str) -> str:

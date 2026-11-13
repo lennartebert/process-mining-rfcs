@@ -62,19 +62,48 @@ CLASSIFICATION_ALTERNATIVES: tuple[str, ...] = (
 # Compact five-way labels used by compose tables (letter codes A–E).
 CLASSIFICATION_CODES: tuple[str, ...] = ("A", "B", "C", "D", "E")
 CLASSIFICATION_LABELS: dict[str, str] = {
-    "A": "Insufficient support",
-    "B": "PL not plausible",
-    "C": "PL plausible, alternative preferred",
-    "D": "PL plausible, PL best",
-    "E": "PL plausible, alternatives inconclusive",
+    "A": "Ineligible for assessment",
+    "B": "PL rejected",
+    "C": "PL not rejected; alternative favored",
+    "D": "PL not rejected; PL favored",
+    "E": "PL not rejected; no decisive preference",
 }
+# Hex fills without ``#`` (LaTeX ``\\cellcolor[HTML]`` and matplotlib both use them).
 CLASSIFICATION_CELL_COLORS: dict[str, str] = {
     "A": "FFFFFF",
-    "B": "D55E00",
-    "C": "E69F00",
-    "D": "009E73",
-    "E": "56B4E9",
+    "B": "EA4646",
+    "C": "9670BD",
+    "D": "8FEB32",
+    "E": "19C8C8",
 }
+# Overlay text on colored bars / cells (with ``#`` for matplotlib).
+CLASSIFICATION_LABEL_TEXT_COLORS: dict[str, str] = {
+    "A": "#111111",
+    "B": "#FFFFFF",
+    "C": "#FFFFFF",
+    "D": "#111111",
+    "E": "#111111",
+}
+
+
+def format_classification_label(
+    code: str,
+    *,
+    style: str = "equals",
+) -> str:
+    """Render ``code`` with its ``CLASSIFICATION_LABELS`` name.
+
+    ``style`` is ``equals`` (``A = …``), ``paren`` (``A) …``), or ``colon``
+    (``A: …``).
+    """
+    label = CLASSIFICATION_LABELS[code]
+    if style == "paren":
+        return f"{code}) {label}"
+    if style == "colon":
+        return f"{code}: {label}"
+    if style == "equals":
+        return f"{code} = {label}"
+    raise ValueError(f"unknown classification label style: {style!r}")
 
 # powerlaw default alpha upper bound is 3; raise so discrete MLE is not pinned.
 _ALPHA_PARAMETER_RANGE: list[float] = [0.0, 4.0]
@@ -519,29 +548,6 @@ def bootstrap_gof(
 # ---------------------------------------------------------------------------
 
 
-def _interpret_llr(
-    r: float, p: float, model_1: str, model_2: str, alpha: float
-) -> str:
-    """Short text label for one Vuong LLR comparison."""
-    if np.isfinite(r) and r == 0.0 and not np.isfinite(p):
-        return "no preference (identical likelihoods)"
-    if not np.isfinite(r) or not np.isfinite(p):
-        return "comparison failed"
-    if p >= alpha:
-        if r > 0:
-            direction = f"{model_1} numerically favored"
-        elif r < 0:
-            direction = f"{model_2} numerically favored"
-        else:
-            direction = "no numerical preference"
-        return f"inconclusive ({direction})"
-    if r > 0:
-        return f"{model_1} favored (distinguishable)"
-    if r < 0:
-        return f"{model_2} favored (distinguishable)"
-    return "no preference (distinguishable tie)"
-
-
 def compare_to_alternatives(
     fit: powerlaw.Fit,
     *,
@@ -573,9 +579,6 @@ def compare_to_alternatives(
                     "R": r_f,
                     "p": p_f,
                     "preferred_model": preferred,
-                    "interpretation": _interpret_llr(
-                        r_f, p_f, model_1, model_2, significance_level
-                    ),
                 }
             )
         except Exception as exc:
@@ -588,7 +591,6 @@ def compare_to_alternatives(
                     "R": float("nan"),
                     "p": float("nan"),
                     "preferred_model": "unavailable",
-                    "interpretation": f"error during comparison ({msg})",
                 }
             )
     return pd.DataFrame(rows)
@@ -678,6 +680,44 @@ def select_best_other_distribution(
     if valid.empty:
         return None
     return str(valid.loc[valid["R"].astype(float).idxmin(), "model_2"])
+
+
+def select_best_distribution(
+    comparison_df: pd.DataFrame | None,
+    *,
+    significance_level: float = DEFAULT_SIGNIFICANCE_LEVEL,
+) -> tuple[str | None, float | None, float | None, bool]:
+    """Pick power law or the strongest alternative for a log×scale cell.
+
+    Power law wins when every counted alternative has finite R > 0. Otherwise
+    the most negative-R alternative wins. ``significant`` is True when that
+    choice is distinguishable at ``significance_level``: for an alternative,
+    its Vuong p is below the threshold; for power law, every counted
+    alternative has R > 0 and p below the threshold.
+
+    Returns ``(model_name, R, p, significant)``. R and p are only set when an
+    alternative wins (power law has no self-comparison).
+    """
+    valid = _finite_preference_rows(comparison_df)
+    if valid.empty:
+        return None, None, None, False
+    by_model: dict[str, tuple[float, float]] = {}
+    for _, row in valid.iterrows():
+        by_model[str(row["model_2"])] = (float(row["R"]), float(row["p"]))
+    if all(
+        name in by_model and by_model[name][0] > 0
+        for name in CLASSIFICATION_ALTERNATIVES
+    ):
+        significant = all(
+            by_model[name][1] < significance_level
+            for name in CLASSIFICATION_ALTERNATIVES
+        )
+        return "power_law", None, None, significant
+    idx = valid["R"].astype(float).idxmin()
+    row = valid.loc[idx]
+    r_val = float(row["R"])
+    p_val = float(row["p"])
+    return str(row["model_2"]), r_val, p_val, p_val < significance_level
 
 
 def compact_classification(
@@ -795,23 +835,6 @@ def decide_and_record(
         + [c for c in comparison_df.columns if c not in ("log_name", "n_fitted_types")],
     ]
 
-    try:
-        gof_p = float(evaluation.get("gof_p"))
-    except (TypeError, ValueError):
-        gof_p = float("nan")
-
-    model_label = model.replace("_", " ")
-    classification = _classify(
-        n_fitted_types=n_fitted_types,
-        gof_p=gof_p,
-        comparison_df=comparison_df,
-        model_label=model_label,
-        minimum_fitted_types=minimum_fitted_types,
-        significance_level=significance_level,
-        fit_valid=fit_valid,
-        pathology_flags=list(fit.get("pathology_flags") or []),
-    )
-
     # Strongest counted alternative under Vuong R: most negative R (TPL excluded).
     best_other: str | None = None
     if fit_valid:
@@ -859,7 +882,6 @@ def decide_and_record(
         ),
         "log_range": _optional_float(evaluation.get("log_range")),
         "fit_valid": fit_valid,
-        "classification": classification,
         "best_other_distribution": pd.NA,
     }
     if fit_valid:
@@ -914,7 +936,6 @@ def empty_clauset_result(
             "R": pd.NA,
             "p": pd.NA,
             "preferred_model": pd.NA,
-            "interpretation": pd.NA,
         }
         for m2, _ in _ALTERNATIVES
     ]
@@ -938,7 +959,6 @@ def empty_clauset_result(
         "n_failed": pd.NA,
         "gof_kind": pd.NA,
         "fit_valid": pd.NA,
-        "classification": classification,
         "best_other_distribution": pd.NA,
     }
     if model == DOUBLY_BOUNDED_POWER_LAW:

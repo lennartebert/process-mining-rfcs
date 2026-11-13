@@ -1,11 +1,12 @@
 """Ordered runner for the power-law statistics analysis pipeline.
 
-Default (serial): ``01 -> 02 -> 03 -> 05`` (describe, extract, Clauset, compose).
-Step 04 (combine) is skipped because there are no parallel shards.
+Default (serial): ``01 -> 02 -> 03 -> 05 -> 06`` (describe, extract, Clauset,
+cross-log, compose). Step 04 (combine) is skipped because there are no parallel
+shards.
 
 ``--parallel`` (one dataset): ``01 -> 02 -> 03`` only, writing per-log shards.
 After all array tasks finish, run ``--combine`` (or ``.slurm/powerlaw_statistics_combine.sh``)
-to execute ``04 -> 05`` (merge shards, then compose).
+to execute ``04 -> 05 -> 06`` (merge shards, cross-log, compose).
 
 ``--test`` runs TEST_BPIC12 with concepts variants, n1, n2 and fewer bootstraps.
 """
@@ -28,11 +29,11 @@ from utils.constants import (
     ALL_REAL_LOGS_TOKEN,
     ALL_SIM_LOG_DATASETS,
     ALL_SIM_LOGS_TOKEN,
-    POWERLAW_STATISTICS_REAL_DIR,
-    POWERLAW_STATISTICS_SIM_FROM_REAL_DFGS_DIR,
+    PL_STATS_REAL_DIR,
+    PL_STATS_SYNTH_DFG_DIR,
     TEST_ATTACHMENTS_DIR,
     TEST_DATASET,
-    TEST_POWERLAW_STATISTICS_DIR,
+    TEST_PL_STATS_DIR,
 )
 from utils.io.attachments import NGRAM_CONCEPTS
 from utils.timing import format_duration, timing_print
@@ -42,7 +43,8 @@ STEPS: list[tuple[str, str]] = [
     ("02", "02_extract_ngrams.py"),
     ("03", "03_clauset_tests.py"),
     ("04", "04_combine_parallel.py"),
-    ("05", "05_compose_results.py"),
+    ("05", "05_cross_log_analysis.py"),
+    ("06", "06_compose_results.py"),
 ]
 
 DEFAULT_CONCEPTS = [*NGRAM_CONCEPTS, "variants"]
@@ -82,7 +84,7 @@ def _selected_steps(args: argparse.Namespace) -> list[tuple[str, str]]:
             )
         if args.parallel:
             raise SystemExit("Error: --combine cannot be used with --parallel.")
-        return [(sid, name) for sid, name in STEPS if sid in {"04", "05"}]
+        return [(sid, name) for sid, name in STEPS if sid in {"04", "05", "06"}]
 
     if args.only:
         wanted = {s.strip() for s in args.only.split(",") if s.strip()}
@@ -116,7 +118,7 @@ def _results_dir(
     if args.output_dir:
         return args.output_dir
     if args.test:
-        return str(TEST_POWERLAW_STATISTICS_DIR)
+        return str(TEST_PL_STATS_DIR)
     if datasets:
         sim_flags = [name.endswith("_sim") for name in datasets]
         if any(sim_flags) and not all(sim_flags):
@@ -125,8 +127,8 @@ def _results_dir(
                 "(shared CSVs must not mix sources)."
             )
         if all(sim_flags):
-            return str(POWERLAW_STATISTICS_SIM_FROM_REAL_DFGS_DIR)
-    return str(POWERLAW_STATISTICS_REAL_DIR)
+            return str(PL_STATS_SYNTH_DFG_DIR)
+    return str(PL_STATS_REAL_DIR)
 
 
 def _argv_for_step(
@@ -149,19 +151,23 @@ def _argv_for_step(
     if step_id == "04":
         if results_dir:
             argv.extend(["--output-dir", results_dir])
+        if fixed_xmin is not None:
+            argv.extend(["--xmin", str(fixed_xmin)])
         if datasets is not None:
             argv.extend(["--datasets", *datasets])
         argv.extend(["--concepts", *concepts])
         argv.extend(passthrough)
         return argv
 
-    if step_id == "05":
-        # Datasets optional: omit to compose all logs present in summaries.
+    if step_id in {"05", "06"}:
+        # Datasets optional: omit to use all logs present in summaries / study set.
         if datasets is not None:
             argv.extend(["--datasets", *datasets])
         argv.extend(["--concepts", *concepts])
         if results_dir:
             argv.extend(["--output-dir", results_dir])
+        if fixed_xmin is not None:
+            argv.extend(["--xmin", str(fixed_xmin)])
         argv.extend(passthrough)
         return argv
 
@@ -208,7 +214,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run the power-law statistics analysis pipeline "
-            "(serial 01->02->03->05; parallel 01->02->03; --combine 04->05)"
+            "(serial 01->02->03->05->06; parallel 01->02->03; --combine 04->05->06)"
         )
     )
     parser.add_argument(
@@ -226,7 +232,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         default=None,
         choices=CONCEPT_CHOICES,
         help=(
-            "Concepts for steps 02-05 (default: n1..n20 + variants; "
+            "Concepts for steps 02-06 (default: n1..n20 + variants; "
             f"with --test default: {', '.join(TEST_CONCEPTS)})"
         ),
     )
@@ -246,7 +252,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
             f"Quick smoke run: dataset {TEST_DATASET}, concepts "
             f"{', '.join(TEST_CONCEPTS)} unless --concepts is set, "
             f"attachments under {TEST_ATTACHMENTS_DIR}, "
-            f"Clauset/compose under {TEST_POWERLAW_STATISTICS_DIR}, "
+            f"Clauset/compose under {TEST_PL_STATS_DIR}, "
             f"and n-bootstraps={TEST_N_BOOTSTRAPS}"
         ),
     )
@@ -254,13 +260,13 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--from",
         dest="from_step",
         default=None,
-        help="First step id to run (01..05)",
+        help="First step id to run (01..06)",
     )
     parser.add_argument(
         "--to",
         dest="to_step",
         default=None,
-        help="Last step id to run (01..05)",
+        help="Last step id to run (01..06)",
     )
     parser.add_argument(
         "--only",
@@ -281,8 +287,9 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--combine",
         action="store_true",
         help=(
-            "After parallel shards exist: run step 04 (merge log_info + Clauset) "
-            "then step 05 (compose tables/plots)."
+            "After parallel shards exist: run step 04 (merge log_info + Clauset), "
+            "step 05 (cross-log saturation / paired GOF / explore), "
+            "then step 06 (compose tables/plots)."
         ),
     )
     parser.add_argument(
@@ -290,9 +297,10 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         type=str,
         default=None,
         help=(
-            "Power-law statistics results root (default: results/powerlaw_statistics/real, "
-            "or results/powerlaw_statistics/sim_from_real_dfgs for *_sim logs; "
-            "with --test: results/test/powerlaw_statistics)"
+            "Experiment directory (default: results/pl_stats/real, "
+            "or results/pl_stats/synth_dfg for *_sim logs; "
+            "with --test: results/test/pl_stats). "
+            "A different bootstrap seed is a different directory name, such as real43."
         ),
     )
     parser.add_argument(

@@ -6,6 +6,7 @@ from .analyze import (
     CLASSIFICATION_ALTERNATIVES,
     CLASSIFICATION_CELL_COLORS,
     CLASSIFICATION_CODES,
+    CLASSIFICATION_LABEL_TEXT_COLORS,
     CLASSIFICATION_LABELS,
     DEFAULT_DOUBLY_BOUNDED_EXCLUDE_HEAD_VARIANTS,
     DEFAULT_MINIMUM_FITTED_TYPES,
@@ -17,8 +18,10 @@ from .analyze import (
     accumulate_and_write_csvs,
     compact_classification,
     empty_clauset_result,
+    format_classification_label,
     llr_preference,
     run_clauset_pipeline,
+    select_best_distribution,
     select_best_other_distribution,
 )
 
@@ -26,6 +29,7 @@ __all__ = [
     "CLASSIFICATION_ALTERNATIVES",
     "CLASSIFICATION_CELL_COLORS",
     "CLASSIFICATION_CODES",
+    "CLASSIFICATION_LABEL_TEXT_COLORS",
     "CLASSIFICATION_LABELS",
     "DEFAULT_DOUBLY_BOUNDED_EXCLUDE_HEAD_VARIANTS",
     "DEFAULT_MINIMUM_FITTED_TYPES",
@@ -37,7 +41,9 @@ __all__ = [
     "accumulate_and_write_csvs",
     "compact_classification",
     "empty_clauset_result",
+    "format_classification_label",
     "llr_preference",
     "run_clauset_pipeline",
+    "select_best_distribution",
     "select_best_other_distribution",
 ]

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import math
 import sys
 import unittest
@@ -15,11 +14,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from utils.constants import ALL_REAL_LOG_DATASETS, POWERLAW_STATISTICS_DIR
+from utils.constants import ALL_REAL_LOG_DATASETS, PL_STATS_DIR
+from analyses.powerlaw_statistics.analysis_helpers.paths import concept_dirname
 
 
 def _load_paired():
-    path = REPO_ROOT / "analyses" / "powerlaw_statistics" / "paired_gof.py"
+    path = (
+        REPO_ROOT
+        / "analyses"
+        / "powerlaw_statistics"
+        / "analysis_helpers"
+        / "paired_gof.py"
+    )
     spec = importlib.util.spec_from_file_location("paired_gof_under_test", path)
     if spec is None or spec.loader is None:
         raise ImportError(path)
@@ -56,8 +62,14 @@ def _row(
     }
 
 
-def _write_rows(root: Path, experiment: str, concept: str, rows: list[dict]) -> None:
-    model = root / experiment / concept / "lower_bounded_power_law"
+def _write_rows(root: Path, xmin_name: str, concept: str, rows: list[dict]) -> None:
+    model = (
+        root
+        / xmin_name
+        / "raw_results"
+        / concept_dirname(concept)
+        / "lower_bounded_power_law"
+    )
     model.mkdir(parents=True, exist_ok=True)
     frame = pd.DataFrame(rows)
     if frame["log_name"].nunique() == len(frame):
@@ -160,7 +172,7 @@ class SavedResultComparisonTests(unittest.TestCase):
                 )
                 # HIGH has enough types for both cutoffs.
                 rows[1]["n_fitted_types"] = 40
-                _write_rows(root, "real", concept, rows)
+                _write_rows(root, "xmin-adaptive", concept, rows)
             summary, audit = self._build(
                 root,
                 study_logs=logs,
@@ -194,7 +206,7 @@ class SavedResultComparisonTests(unittest.TestCase):
             for concept in ("n1", "variants"):
                 _write_rows(
                     root,
-                    "real",
+                    "xmin-adaptive",
                     concept,
                     [_row("BORDER", concept=concept, xmin=4, gof_p=0.07, n_fitted_types=40)],
                 )
@@ -223,7 +235,7 @@ class SavedResultComparisonTests(unittest.TestCase):
             for concept in ("n1", "variants"):
                 _write_rows(
                     root,
-                    "real",
+                    "xmin-adaptive",
                     concept,
                     [_row("PCT", concept=concept, xmin=2, gof_p=5.6)],
                 )
@@ -245,7 +257,7 @@ class SavedResultComparisonTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            model = root / "real" / "n1" / "lower_bounded_power_law"
+            model = root / "xmin-adaptive" / "raw_results" / "n001" / "lower_bounded_power_law"
             model.mkdir(parents=True)
             duplicated = pd.DataFrame(
                 [
@@ -254,7 +266,7 @@ class SavedResultComparisonTests(unittest.TestCase):
                 ]
             )
             duplicated.to_csv(model / "summary.csv", index=False)
-            variant = root / "real" / "variants" / "lower_bounded_power_law"
+            variant = root / "xmin-adaptive" / "raw_results" / "variants" / "lower_bounded_power_law"
             variant.mkdir(parents=True)
             pd.DataFrame([_row("DUP", concept="variants", gof_p=0.2)]).to_csv(
                 variant / "summary_DUP.csv", index=False
@@ -294,13 +306,13 @@ class SavedResultComparisonTests(unittest.TestCase):
             for concept in ("n1", "variants"):
                 _write_rows(
                     root,
-                    "real",
+                    "xmin-adaptive",
                     concept,
                     [_row("ADAPT", concept=concept, xmin=1, gof_p=0.90)],
                 )
                 _write_rows(
                     root,
-                    "real_xmin1",
+                    "xmin01",
                     concept,
                     [
                         _row("ADAPT", concept=concept, xmin=1, gof_p=0.01),
@@ -324,8 +336,8 @@ class SavedResultComparisonTests(unittest.TestCase):
             foreign = audit[
                 (audit["xmin_setting"] == "1") & (audit["log_name"] == "FOREIGN")
             ].iloc[0]
-            self.assertEqual(adaptive["source_experiment"], "real")
-            self.assertEqual(fixed["source_experiment"], "real_xmin1")
+            self.assertEqual(adaptive["source_experiment"], "xmin-adaptive")
+            self.assertEqual(fixed["source_experiment"], "xmin01")
             self.assertAlmostEqual(float(adaptive["gof_p_k"]), 0.90)
             self.assertAlmostEqual(float(fixed["gof_p_k"]), 0.01)
             self.assertEqual(int(adaptive["outcome_k"]), 1)
@@ -345,7 +357,7 @@ class SavedResultComparisonTests(unittest.TestCase):
             for concept in ("n1", "variants"):
                 _write_rows(
                     root,
-                    "real",
+                    "xmin-adaptive",
                     concept,
                     [_row("ONLY", concept=concept, xmin=4, gof_p=0.4)],
                 )
@@ -360,7 +372,7 @@ class SavedResultComparisonTests(unittest.TestCase):
             row = summary.iloc[0]
             self.assertEqual(row["status"], "unavailable")
             self.assertEqual(int(row["N"]), 0)
-            self.assertIn("Missing experiment directory real_xmin1", row["notes"])
+            self.assertIn("Missing xmin directory xmin01", row["notes"])
             self.assertTrue(pd.isna(row["mcnemar_p"]))
             self.assertTrue(pd.isna(row["paired_difference"]))
 
@@ -376,7 +388,7 @@ class SavedResultComparisonTests(unittest.TestCase):
                     # Rejected at k=1, not rejected at variants.
                     gof_p = 0.01 if concept == "n1" else 0.80
                     rows.append(_row(log, concept=concept, xmin=2, gof_p=gof_p))
-                _write_rows(root, "real_xmin2", concept, rows)
+                _write_rows(root, "xmin02", concept, rows)
             summary, _audit = self._build(
                 root,
                 study_logs=logs,
@@ -393,37 +405,6 @@ class SavedResultComparisonTests(unittest.TestCase):
             self.assertTrue(pd.isna(missing["mcnemar_p"]))
             self.assertTrue(pd.isna(missing["mcnemar_p_holm"]))
 
-    def test_sidecar_conflict_is_not_resolved_from_fitted_xmin(self) -> None:
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            for concept in ("n1", "variants"):
-                _write_rows(
-                    root,
-                    "real_xmin1",
-                    concept,
-                    [_row("LOG", concept=concept, xmin=1, gof_p=0.5)],
-                )
-            experiment = root / "real_xmin1"
-            (experiment / "experiment_provenance.json").write_text(
-                json.dumps({"xmin_policy": "adaptive"}),
-                encoding="utf-8",
-            )
-            summary, audit = self._build(
-                root,
-                study_logs=["LOG"],
-                xmin_settings=(1,),
-                ks=(1,),
-                min_fitted_types_grid=(15,),
-                gof_thresholds=(0.05,),
-            )
-            self.assertEqual(summary.iloc[0]["status"], "unavailable")
-            self.assertIn(
-                "incompatible_run_configuration",
-                audit.iloc[0]["exclusion_reason_k"],
-            )
-
     def test_endpoint_specific_exclusion(self) -> None:
         import tempfile
 
@@ -431,13 +412,13 @@ class SavedResultComparisonTests(unittest.TestCase):
             root = Path(tmp)
             _write_rows(
                 root,
-                "real",
+                "xmin-adaptive",
                 "n1",
                 [_row("ONE", concept="n1", xmin=8, n_fitted_types=10, gof_p=0.5)],
             )
             _write_rows(
                 root,
-                "real",
+                "xmin-adaptive",
                 "variants",
                 [_row("ONE", concept="variants", xmin=8, n_fitted_types=40, gof_p=0.5)],
             )
@@ -537,8 +518,8 @@ class PaperTableTests(unittest.TestCase):
 
 class RealStudyResultsTests(unittest.TestCase):
     def test_saved_real_experiments_satisfy_the_checks(self) -> None:
-        root = REPO_ROOT / POWERLAW_STATISTICS_DIR
-        if not (root / "real").is_dir():
+        root = REPO_ROOT / PL_STATS_DIR / "real"
+        if not (root / "xmin-adaptive").is_dir():
             self.skipTest("saved real experiments are not present")
         summary, audit = PAIRED.build_paired_gof_tables(root)
         PAIRED.validate_paired_tables(summary, audit)
@@ -547,9 +528,9 @@ class RealStudyResultsTests(unittest.TestCase):
         self.assertNotIn("TEST_BPIC12", set(audit["log_name"]))
         self.assertFalse(audit["log_name"].astype(str).str.endswith("_sim").any())
         adaptive = audit[audit["xmin_setting"] == "None"]
-        self.assertTrue((adaptive["source_experiment"] == "real").all())
+        self.assertTrue((adaptive["source_experiment"] == "xmin-adaptive").all())
         fixed = audit[audit["xmin_setting"] == "1"]
-        self.assertTrue((fixed["source_experiment"] == "real_xmin1").all())
+        self.assertTrue((fixed["source_experiment"] == "xmin01").all())
 
 
 if __name__ == "__main__":

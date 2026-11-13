@@ -7,8 +7,8 @@ traces as the source. Writes ``data/synthetic/<LOG>_sim/<LOG>_sim.xes.gz``
 
 Not wired into ``main.py``. Run directly:
 
-    python analyses/powerlaw_statistics/06_generate_synthetic_from_real_logs.py
-    python analyses/powerlaw_statistics/06_generate_synthetic_from_real_logs.py --datasets ACCRE
+    python analyses/powerlaw_statistics/exploratory/generate_synthetic_from_real_logs.py
+    python analyses/powerlaw_statistics/exploratory/generate_synthetic_from_real_logs.py --datasets ACCRE
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from typing import Iterable, List, Mapping, Sequence
 from pm4py.objects.log.exporter.xes import exporter as xes_exporter
 from pm4py.objects.log.obj import Event, EventLog, Trace
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 

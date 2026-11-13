@@ -1,18 +1,19 @@
-"""Batch explore GOF jumps / abstraction-order diagnostics for real logs.
+"""Batch explore GOF changes / abstraction-order diagnostics for real logs.
 
-For each log under a Clauset results root (``real``, ``real_xmin1``, or
-``real_xmin2``), write:
+For each log under ``results/pl_stats/real/<xmin>`` (``xmin-adaptive``,
+``xmin01``, or ``xmin02``), write:
 
 1. Trace-length distribution (box + CDF)
 2. GOF ``p`` vs abstraction order ``k`` (integer x ticks)
 3. Empirical vs saved-α CDF panels with max-|Δ| markers
-4. Type / occurrence transition overview CSV (variants column = types/occ only)
+4. Type / occurrence transition overview CSV. Variants carry types,
+   occurrences, and the below-xmin exclusion. Other transition rows stay N/A.
 
-Not wired into ``main.py``. Run:
+Invoked from step 05 (``05_cross_log_analysis.py``). Can also be run alone:
 
-    python analyses/powerlaw_statistics/08_explore_gof_jumps.py --xmin 2
-    python analyses/powerlaw_statistics/08_explore_gof_jumps.py --xmin 1
-    python analyses/powerlaw_statistics/08_explore_gof_jumps.py --xmin none
+    python -m analyses.powerlaw_statistics.analysis_helpers.explore_gof_changes --xmin 2
+    python -m analyses.powerlaw_statistics.analysis_helpers.explore_gof_changes --xmin 1
+    python -m analyses.powerlaw_statistics.analysis_helpers.explore_gof_changes --xmin none
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ import numpy as np
 import pandas as pd
 import powerlaw
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -42,7 +43,7 @@ from utils.constants import (
     ALL_REAL_LOGS_TOKEN,
     ATTACHMENTS_DIR,
     DATA_DICTIONARY_PATH,
-    POWERLAW_STATISTICS_DIR,
+    PL_STATS_DIR,
 )
 from utils.io import get_data_dictionary, get_event_log_from_dictionary, load_attachments
 from utils.io.attachments import START, _extended_trace, _ngram_nodes, trace_completion_data
@@ -77,9 +78,9 @@ def parse_xmin_token(raw: str) -> int | None:
 
 
 def results_root_for_xmin(xmin: int | None) -> Path:
-    if xmin is None:
-        return REPO_ROOT / POWERLAW_STATISTICS_DIR / "real"
-    return REPO_ROOT / POWERLAW_STATISTICS_DIR / f"real_xmin{xmin}"
+    from analyses.powerlaw_statistics.analysis_helpers.paths import xmin_dirname
+
+    return REPO_ROOT / PL_STATS_DIR / "real" / xmin_dirname(xmin)
 
 
 def concept_sort_key(concept: str) -> tuple[int, int | str]:
@@ -105,8 +106,12 @@ def load_frequencies(attachments_root: Path, concept: str, log_name: str) -> np.
     return extract_frequency_counts(load_attachments(path))
 
 
-def load_log_summary(summary_all: Path, log_name: str) -> pd.DataFrame:
-    df = pd.read_csv(summary_all)
+def load_log_summary(raw_results: Path, log_name: str) -> pd.DataFrame:
+    from analyses.powerlaw_statistics.analysis_helpers.paths import stack_raw_summaries
+
+    df = stack_raw_summaries(raw_results)
+    if df.empty:
+        return df
     df = df[(df["log_name"] == log_name) & (df["model"] == MODEL)].copy()
     df["concept"] = df["concept"].astype(str)
     return df.sort_values("concept", key=lambda s: s.map(concept_sort_key)).reset_index(
@@ -593,12 +598,66 @@ def analyze_transition(k: int, sequences: list[tuple[str, ...]]) -> dict[str, An
     }
 
 
+def _optional_xmin(value: object) -> int | None:
+    if pd.isna(value):
+        return None
+    number = float(value)  # type: ignore[arg-type]
+    if not np.isfinite(number):
+        return None
+    return int(number)
+
+
+def xmin_by_concept_key(summary: pd.DataFrame) -> dict[Any, int | None]:
+    """Map each fitted concept to the xmin stored in its summary row.
+
+    Keys are the integer order ``k`` for ``n{k}`` and the concept id otherwise
+    (``variants``). A missing xmin stays ``None`` so the exclusion rows are N/A.
+    """
+    out: dict[Any, int | None] = {}
+    if summary.empty or "concept" not in summary.columns or "xmin" not in summary.columns:
+        return out
+    for concept, xmin in zip(summary["concept"].astype(str), summary["xmin"], strict=True):
+        key: Any = k_from_concept(concept)
+        out[key if key is not None else concept] = _optional_xmin(xmin)
+    return out
+
+
+def _frequency_counts(nodes: Iterable[str]) -> np.ndarray:
+    counter: Counter[str] = Counter(nodes)
+    if not counter:
+        return np.empty(0, dtype=np.int64)
+    return np.fromiter(counter.values(), dtype=np.int64)
+
+
+def _tail_given_xmin(counts: np.ndarray, xmin: int | None) -> dict[str, int] | None:
+    """Split frequencies into the mass below xmin and the region that is fitted.
+
+    Clauset ``n_fitted_types`` counts types with frequency >= xmin. Types below
+    that cutoff are omitted from the fit, which is why the raw type total in
+    this table can exceed the fitted-type count.
+    """
+    if xmin is None:
+        return None
+    below = counts < int(xmin)
+    kept = ~below
+    return {
+        "excluded_types": int(below.sum()),
+        "types_ge_xmin": int(kept.sum()),
+        "excluded_occ": int(counts[below].sum()) if below.any() else 0,
+        "occ_ge_xmin": int(counts[kept].sum()) if kept.any() else 0,
+    }
+
+
+_TAIL_FIELDS = ("excluded_types", "types_ge_xmin", "excluded_occ", "occ_ge_xmin")
+
+
 def write_transition_overview(
     log_name: str,
     out_dir: Path,
     *,
     trace_rows: Sequence[Mapping[str, Any]],
     ngram_ks: Sequence[int],
+    xmin_by_key: Mapping[Any, int | None],
 ) -> None:
     sequences = [tuple(row["activity_sequence"]) for row in trace_rows]
     k_values = sorted(int(k) for k in ngram_ks)
@@ -607,22 +666,41 @@ def write_transition_overview(
         return
 
     indep_totals: dict[Any, dict[str, int]] = {}
+    counts_by_key: dict[Any, np.ndarray] = {}
     for k in k_values:
-        nodes: list[str] = []
-        for seq in sequences:
-            nodes.extend(_ngram_nodes(seq, k, True))
-        indep_totals[k] = {"n_types": len(set(nodes)), "n_occ": len(nodes)}
-    variant_nodes = [str(seq) for seq in sequences]
+        counts = _frequency_counts(
+            node for seq in sequences for node in _ngram_nodes(seq, k, True)
+        )
+        indep_totals[k] = {
+            "n_types": int(counts.size),
+            "n_occ": int(counts.sum()) if counts.size else 0,
+        }
+        counts_by_key[k] = counts
+    variant_counts = _frequency_counts(str(seq) for seq in sequences)
     indep_totals["variants"] = {
-        "n_types": len(set(variant_nodes)),
-        "n_occ": len(variant_nodes),
+        "n_types": int(variant_counts.size),
+        "n_occ": int(variant_counts.sum()) if variant_counts.size else 0,
     }
+    counts_by_key["variants"] = variant_counts
+
+    def _tail_cell(key: Any, field: str) -> int | None:
+        tail = _tail_given_xmin(counts_by_key[key], xmin_by_key.get(key))
+        if tail is None:
+            return None
+        return tail[field]
 
     transition_by_dest: dict[int, dict[str, Any]] = {}
     for k in k_values[:-1]:
         transition_by_dest[k + 1] = analyze_transition(k, sequences)
 
+    def _xmin_cell(key: Any) -> int | None:
+        return xmin_by_key.get(key)
+
     def _cell(k: int, field: str) -> Any:
+        if field == "xmin":
+            return _xmin_cell(k)
+        if field in _TAIL_FIELDS:
+            return _tail_cell(k, field)
         if field in {"types_after", "occ_after"}:
             return indep_totals[k]["n_types" if field == "types_after" else "n_occ"]
         if field == "types_before":
@@ -648,10 +726,15 @@ def write_transition_overview(
             ("− Exhausted types", "n_exhausted"),
             ("+ Introduced types", "n_introduced"),
             ("Types after", "types_after"),
+            ("− Excluded because < xmin", "excluded_types"),
+            ("Types >= xmin", "types_ge_xmin"),
+            ("xmin", "xmin"),
             ("Occurrences before", "occ_before"),
             ("− No successor", "occ_no_succ"),
             ("+ Introduced occurrences", "introduced_occ"),
             ("Occurrences after", "occ_after"),
+            ("− Excluded because < xmin", "excluded_occ"),
+            ("Occurrences >= xmin", "occ_ge_xmin"),
             ("Newly complete target types", "newly_complete_target_types"),
             ("Complete target types in total", "complete_target_types"),
             ("Occurrences in complete targets", "complete_target_occurrences"),
@@ -664,11 +747,18 @@ def write_transition_overview(
         for k in k_values:
             value = _cell(k, field)
             row[f"k={k}"] = value if value is not None else "N/A"
-        # Variants endpoint: only types/occurrences after; everything else N/A.
+        # Variants endpoint: totals, xmin, and the below-xmin split.
+        # Transition rows stay N/A.
         if field == "types_after":
             row["variants"] = indep_totals["variants"]["n_types"]
         elif field == "occ_after":
             row["variants"] = indep_totals["variants"]["n_occ"]
+        elif field == "xmin":
+            value = _xmin_cell("variants")
+            row["variants"] = value if value is not None else "N/A"
+        elif field in _TAIL_FIELDS:
+            value = _tail_cell("variants", field)
+            row["variants"] = value if value is not None else "N/A"
         else:
             row["variants"] = "N/A"
         overview_rows.append(row)
@@ -690,16 +780,18 @@ def process_log(
     data_dictionary: Mapping[str, Mapping[str, object]],
     experiment_id: str,
 ) -> None:
-    summary_all = results_root / "summary_all_concepts.csv"
-    if not summary_all.is_file():
-        raise SystemExit(f"Error: missing {summary_all}")
+    raw_results = results_root / "raw_results"
+    if not raw_results.is_dir():
+        raise SystemExit(f"Error: missing {raw_results}")
 
-    summary = load_log_summary(summary_all, log_name)
+    summary = load_log_summary(raw_results, log_name)
     if summary.empty:
-        print(f"Skipping {log_name}: no lower_bounded rows in {summary_all}")
+        print(f"Skipping {log_name}: no lower_bounded rows in {raw_results}")
         return
 
-    out_dir = results_root / "explore_gof_jumps" / log_name
+    from analyses.powerlaw_statistics.analysis_helpers.paths import EXPLORE_DIRNAME
+
+    out_dir = results_root / EXPLORE_DIRNAME / log_name
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"[{experiment_id}] {log_name} -> {out_dir}")
 
@@ -721,14 +813,22 @@ def process_log(
     )
     print(f"  transition overview (k={ngram_ks[0]}..{ngram_ks[-1]} + variants)…")
     write_transition_overview(
-        log_name, out_dir, trace_rows=trace_rows, ngram_ks=ngram_ks
+        log_name,
+        out_dir,
+        trace_rows=trace_rows,
+        ngram_ks=ngram_ks,
+        xmin_by_key=xmin_by_concept_key(summary),
     )
     print(f"  done {log_name}")
 
 
-def resolve_datasets(raw: Sequence[str] | None, summary_all: Path) -> list[str]:
+def resolve_datasets(raw: Sequence[str] | None, raw_results: Path) -> list[str]:
+    from analyses.powerlaw_statistics.analysis_helpers.paths import stack_raw_summaries
+
     if raw is None or (len(raw) == 1 and raw[0] == ALL_REAL_LOGS_TOKEN):
-        df = pd.read_csv(summary_all, usecols=["log_name"])
+        df = stack_raw_summaries(raw_results)
+        if df.empty or "log_name" not in df.columns:
+            return []
         present = set(df["log_name"].astype(str))
         return [name for name in ALL_REAL_LOG_DATASETS if name in present]
     return list(raw)
@@ -737,21 +837,21 @@ def resolve_datasets(raw: Sequence[str] | None, summary_all: Path) -> list[str]:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Write per-log GOF-jump exploration artifacts under "
-            "results/powerlaw_statistics/<real|real_xminN>/explore_gof_jumps/<LOG>/"
+            "Write per-log GOF-change exploration artifacts under "
+            "results/pl_stats/real/<xmin>/explore_gof_changes/<LOG>/"
         )
     )
     parser.add_argument(
         "--xmin",
         type=parse_xmin_token,
         required=True,
-        help="Fixed xmin used for the Clauset run: 1, 2, or none (free xmin -> real/)",
+        help="Fixed xmin used for the Clauset run: 1, 2, or none (free xmin -> xmin-adaptive/)",
     )
     parser.add_argument(
         "--datasets",
         nargs="+",
         default=[ALL_REAL_LOGS_TOKEN],
-        help="Log names or ALL_REAL_LOGS (default: all logs present in summary_all_concepts.csv)",
+        help="Log names or ALL_REAL_LOGS (default: logs present in raw summaries)",
     )
     return parser.parse_args(argv)
 
@@ -759,22 +859,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     results_root = results_root_for_xmin(args.xmin)
-    experiment_id = results_root.name
-    summary_all = results_root / "summary_all_concepts.csv"
+    experiment_id = f"real/{results_root.name}"
+    raw_results = results_root / "raw_results"
     if not results_root.is_dir():
         raise SystemExit(f"Error: results root not found: {results_root}")
-    if not summary_all.is_file():
+    if not raw_results.is_dir():
         raise SystemExit(
-            f"Error: missing {summary_all}. Run combine for this results root first."
+            f"Error: missing {raw_results}. Run combine for this xmin folder first."
         )
 
     attachments_root = (REPO_ROOT / ATTACHMENTS_DIR).resolve()
     data_dictionary = get_data_dictionary(
         REPO_ROOT / DATA_DICTIONARY_PATH, get_real=True, get_synthetic=False
     )
-    datasets = resolve_datasets(args.datasets, summary_all)
+    datasets = resolve_datasets(args.datasets, raw_results)
     print(
-        f"explore_gof_jumps: xmin={args.xmin!r} root={results_root} "
+        f"explore_gof_changes: xmin={args.xmin!r} root={results_root} "
         f"n_logs={len(datasets)}"
     )
     for log_name in datasets:
