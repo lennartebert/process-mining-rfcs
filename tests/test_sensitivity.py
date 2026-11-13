@@ -210,10 +210,9 @@ class SensitivityFixtureTests(unittest.TestCase):
                 concepts=CONCEPTS_FIXTURE,
             )
             output = root / "out"
-            removed = write_sensitivity(result, output)
-            self.assertFalse((output / "paired_gof_sensitivity.csv").exists())
-            self.assertFalse((output / "README.md").exists())
-            self.assertEqual(removed, [])
+            write_sensitivity(result, output)
+            self.assertTrue((output / "configurations.csv").is_file())
+            self.assertTrue((output / "sensitivity_summary.csv").is_file())
             self._assert_summary(result)
             self._assert_comp_invariants(result)
             self._assert_roundtrip(output)

@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 def timestamp() -> str:
-    """Local wall-clock stamp matching Slurm DEBUG lines."""
+    """Local wall-clock stamp for timing lines."""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -27,5 +27,5 @@ def format_duration(seconds: float) -> str:
 
 
 def timing_print(message: str) -> None:
-    """Print a ``[ts] TIMING: ...`` line (flush so Slurm logs stay current)."""
+    """Print a ``[ts] TIMING: ...`` line."""
     print(f"[{timestamp()}] TIMING: {message}", flush=True)

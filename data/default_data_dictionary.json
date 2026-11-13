@@ -11,6 +11,12 @@
     "type": "real",
     "path": "data/real/RTFMP/Road_Traffic_Fine_Management_Process.xes.gz"
   },
+  "TEST_BPIC12": {
+    "name": "BPIC 2012 smoke-test sample",
+    "short_name": "TEST_BPIC12",
+    "type": "real",
+    "path": "data/real/TEST_BPIC12/TEST_BPI_Challenge_2012.xes.gz"
+  },
   "O2C_S": {
     "name": "Order to Cash (Synthetic)",
     "short_name": "O2C_S",

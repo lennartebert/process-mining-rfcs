@@ -11,8 +11,6 @@ dependencies:
   - graphviz
   - scipy=1.10.*
   - mpmath
-  - jinja2
-  - pyyaml
 
   # PM4Py (pip-only)
   - pip:

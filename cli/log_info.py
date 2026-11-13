@@ -18,9 +18,8 @@ if str(REPO_ROOT) not in sys.path:
 from utils.constants import DATA_DICTIONARY_PATH, LOG_INFO_DIR
 from utils.csv_shards import log_results_dir
 from utils.io import get_data_dictionary, get_event_log_from_path, parse_count, variant_and_activity_counts
+from utils.log_info import IDENTITY_COLUMNS, INTEGER_STATS, write_log_info_latex
 
-
-IDENTITY_COLUMNS: List[str] = ["Log", "Description"]
 
 DEFAULT_STATS: List[str] = [
     "# Cases",
@@ -35,42 +34,9 @@ ALL_STATS: List[str] = [
     "Max Trace Length",
 ]
 
-INTEGER_STATS = frozenset(
-    {
-        "# Cases",
-        "# Events",
-        "# Variants",
-        "# Activities",
-        "Median Trace Length",
-        "Max Trace Length",
-    }
-)
-
-LATEX_COLUMN_RENAMES = {
-    "# Cases": r"\# Cases",
-    "# Events": r"\# Events",
-    "# Variants": r"\# Variants",
-    "# Activities": r"\# Activities",
-    "Median Trace Length": r"Median Trace Length",
-    "Max Trace Length": r"Max Trace Length",
-}
-
 
 def _output_columns(stats: Sequence[str]) -> List[str]:
     return [*IDENTITY_COLUMNS, *stats]
-
-
-def _format_stat_for_latex(value: object, *, integer_like: bool) -> str:
-    """Format a numeric stat for LaTeX tables."""
-    parsed = parse_count(value)
-    if pd.isna(parsed):
-        return ""
-    if integer_like:
-        return format(int(round(parsed)), ",")
-    text = f"{parsed:.1f}"
-    if text.endswith(".0"):
-        return format(int(parsed), ",")
-    return text
 
 
 def _coerce_integer_stats(df: pd.DataFrame, stats: Sequence[str]) -> pd.DataFrame:
@@ -83,23 +49,6 @@ def _coerce_integer_stats(df: pd.DataFrame, stats: Sequence[str]) -> pd.DataFram
             pd.to_numeric(out[col], errors="coerce").round().astype("Int64")
         )
     return out
-
-
-def _write_latex_from_csv(
-    details_df: pd.DataFrame, tex_path: Path, stats: Sequence[str]
-) -> None:
-    """Write LaTeX output from an existing details DataFrame."""
-    latex_df = details_df.copy()
-    for col in stats:
-        latex_df[col] = latex_df[col].map(
-            lambda value, c=col: _format_stat_for_latex(
-                value, integer_like=c in INTEGER_STATS
-            )
-        )
-    rename = {col: LATEX_COLUMN_RENAMES[col] for col in stats if col in LATEX_COLUMN_RENAMES}
-    latex_df = latex_df.rename(columns=rename)
-    tex_path.write_text(latex_df.to_latex(index=False, escape=False), encoding="utf-8")
-    print(f"Saved: {tex_path}")
 
 
 def _rows_for_checkpoint(
@@ -315,7 +264,7 @@ def main(argv: List[str] | None = None) -> None:
     details_df.to_csv(csv_path, index=False)
     print(f"Saved: {csv_path}")
     if tex_path is not None:
-        _write_latex_from_csv(details_df, tex_path, stats)
+        write_log_info_latex(details_df, tex_path, stats)
 
 
 if __name__ == "__main__":

@@ -53,7 +53,6 @@ from analyses.powerlaw_statistics.analysis_helpers.paths import (
     concept_dirname,
     config_dirname,
     explore_dir,
-    fitted_types_path,
     plots_dir,
     raw_results_dir,
     xmin_dirname,
@@ -393,7 +392,7 @@ def build_variant_power_law_table(
 
 
 def classification_to_scaling_cell(classification: object) -> str:
-    """Map a stored classification string to an A–E code (legacy fallback)."""
+    """Map a stored classification string to an A–E code."""
     fallback = "A"
     if classification is None or (isinstance(classification, float) and pd.isna(classification)):
         return fallback
@@ -1499,7 +1498,6 @@ def write_across_logs_outputs(
     best_alt_p_df: pd.DataFrame,
     best_alt_significant_df: pd.DataFrame,
     compose_dir: Path,
-    legacy_fitted_types_csv: Path | None = None,
     minimum_fitted_types: int = DEFAULT_MINIMUM_FITTED_TYPES,
     gof_p_threshold: float = DEFAULT_SIGNIFICANCE_LEVEL,
     comparison_p_threshold: float = DEFAULT_SIGNIFICANCE_LEVEL,
@@ -1510,8 +1508,6 @@ def write_across_logs_outputs(
         gof_p=gof_p_threshold,
         comparison_p=comparison_p_threshold,
     )
-    if legacy_fitted_types_csv is not None:
-        write_table_csv(fitted_types_df, legacy_fitted_types_csv)
     write_table_csv(types_df, compose_dir / "across_logs_types.csv")
     write_table_csv(fitted_types_df, compose_dir / "across_logs_fitted_types.csv")
     write_table_csv(xmin_df, compose_dir / "across_logs_xmin.csv")
@@ -1680,7 +1676,6 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--min-types",
-        "--minimum-fitted-types",
         dest="min_types",
         type=int,
         default=DEFAULT_MINIMUM_FITTED_TYPES,
@@ -1889,7 +1884,6 @@ def main(argv: List[str] | None = None) -> None:
         best_alt_p_df=best_alt_p_df,
         best_alt_significant_df=best_alt_significant_df,
         compose_dir=compose_dir,
-        legacy_fitted_types_csv=fitted_types_path(experiment_dir, args.xmin),
         minimum_fitted_types=min_types,
         gof_p_threshold=gof_p_threshold,
         comparison_p_threshold=comparison_p_threshold,

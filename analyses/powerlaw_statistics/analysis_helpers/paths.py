@@ -115,10 +115,6 @@ def explore_dir(experiment: Path, xmin: int | None) -> Path:
     return xmin_dir(experiment, xmin) / EXPLORE_DIRNAME
 
 
-def fitted_types_path(experiment: Path, xmin: int | None) -> Path:
-    return raw_results_dir(experiment, xmin) / "log_n_fitted_types.csv"
-
-
 def write_seed(experiment: Path, seed: int) -> Path:
     """Record the bootstrap seed shared by every xmin folder in this experiment."""
     path = Path(experiment) / SEED_FILENAME

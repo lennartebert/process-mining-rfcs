@@ -27,11 +27,7 @@ from analyses.powerlaw_statistics.analysis_helpers import explore_gof_changes
 from analyses.powerlaw_statistics.analysis_helpers import saturation as saturation_diagnostics
 from analyses.powerlaw_statistics.analysis_helpers.paired_gof import write_paired_gof_for_config
 from utils.constants import PL_STATS_REAL_DIR
-from utils.io.attachments import NGRAM_CONCEPTS
 from utils.powerlaw import DEFAULT_MINIMUM_FITTED_TYPES, DEFAULT_SIGNIFICANCE_LEVEL
-
-DEFAULT_CONCEPTS = [*NGRAM_CONCEPTS, "variants"]
-CONCEPT_CHOICES = ["variants", "activities", "dfrs", *NGRAM_CONCEPTS]
 
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
@@ -48,13 +44,6 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         help="Optional log filter for paired GOF / explore (default: all study logs)",
     )
     parser.add_argument(
-        "--concepts",
-        nargs="+",
-        default=DEFAULT_CONCEPTS,
-        choices=CONCEPT_CHOICES,
-        help="Accepted for pipeline compatibility; cross-log uses fixed concept sets",
-    )
-    parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
@@ -68,7 +57,6 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--min-types",
-        "--minimum-fitted-types",
         dest="min_types",
         type=int,
         default=DEFAULT_MINIMUM_FITTED_TYPES,

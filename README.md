@@ -3,7 +3,8 @@
 Author: Lennart Ebert (lennart.ebert@hu-berlin.de).
 
 Utilities and CLI workflows for rank-frequency-curve (RFC) analysis and
-power-law testing of process event logs.
+power-law testing of process event logs. Code and derived results are under
+CC BY 4.0 (`LICENSE.txt`). Included event logs keep their source licenses.
 
 ## Installation
 
@@ -13,7 +14,9 @@ conda activate process-mining-rfcs
 ```
 
 Use the `process-mining-rfcs` Jupyter kernel for notebooks. Run commands from
-the repository root.
+the repository root. This environment is enough for the analyses. Rebuilding
+the power-law online appendix PDF is optional and needs TeX Live; see
+[`analyses/powerlaw_statistics/README.md`](analyses/powerlaw_statistics/README.md).
 
 Shared CLIs:
 
@@ -23,9 +26,11 @@ python cli/extract_attachments.py --help
 python cli/clauset_power_law.py --help
 ```
 
-If you want to (re)calculate attachments from raw logs, place your `.xes` files
-under `data/`, create a copy of the data dictionary (to be placed
-`data/data_dictionary.json`) and refer to the data sets in the dictionary.
+Copy a data dictionary to `data/data_dictionary.json` before running:
+
+- `data/default_data_dictionary.json` registers the logs shipped here (BPIC12, RTFMP, and a small BPIC12 sample used by the power-law smoke test).
+- `data/full_data_dictionary_template.json` registers the 24-log benchmark. Download those logs from the sources below into the listed paths, then copy the template over `data/data_dictionary.json`. The 24 logs are not part of this repository.
+
 If `results/attachments/.../attachments.csv.gz` already exists, extraction is
 skipped by default.
 
@@ -60,12 +65,14 @@ jupyter notebook analyses/rfcs/analyze_powerlaw_single_log.ipynb
 Folder: [`analyses/powerlaw_statistics/`](analyses/powerlaw_statistics/).
 Details: [`analyses/powerlaw_statistics/README.md`](analyses/powerlaw_statistics/README.md).
 
+ICPM 2027 submission: Assessing Power-Law Compatibility of Process Behavior
+Frequencies Across Orders of Behavioral Abstraction. The online appendix is
+`results/perm/powerlaw_statistics/Online Appendix Powerlaw Compatibility.pdf`.
 
 ```bash
-python analyses/powerlaw_statistics/main.py --datasets TEST_BPIC12
+python analyses/powerlaw_statistics/main.py --datasets BPIC12
+python analyses/powerlaw_statistics/main.py --test
 ```
-
-Other analyses in this repository are under development and are not listed here.
 
 ## Repository structure
 
@@ -79,7 +86,7 @@ cli/                  # shared CLIs only (import utils/)
   clauset_power_law.py
 analyses/
   rfcs/               # notebooks (interactive copy also at repo root)
-  powerlaw_statistics/# 01 describe -> 02 extract -> 03 Clauset -> 04 combine -> 05 compose
+  powerlaw_statistics/# 01 describe -> 02 extract -> 03 Clauset -> 05 cross-log -> 06 compose -> 07 sensitivity
 tests/
 interactive_simulation_experiments.ipynb  # permalink copy of analyses/rfcs/
 ```
@@ -112,6 +119,7 @@ This repository includes the following datasets ready to use:
 **Real-World Event Logs:**
 - **BPIC12 (BPI Challenge 2012)**: van Dongen, B. 2012. BPI Challenge 2012, Media types: application/x-gzip, text/xml, Eindhoven University of Technology, April 23. (https://doi.org/10.4121/UUID:3926DB30-F712-4394-AEBC-75976070E91F).
 - **RTFMP (Road Traffic Fine Management Process)**: de Leoni, M. (Massimiliano); Mannhardt, Felix (2015): Road Traffic Fine Management Process. Version 1. 4TU.ResearchData. dataset. https://doi.org/10.4121/uuid:270fd440-1057-4fb9-89a9-b699b47990f5
+- **TEST_BPIC12**: small BPIC12 sample for `analyses/powerlaw_statistics/main.py --test`. Not a study log.
 
 ### Not included datasets
 

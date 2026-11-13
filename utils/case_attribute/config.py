@@ -27,9 +27,6 @@ SCHEMA_VERSION = 3
 INVENTORY_FILENAME = "attribute_inventory.csv"
 POWERLAW_SELECTION_FILENAME = "attribute_selection_for_powerlaw.csv"
 
-# Backwards-compatible aliases (deprecated YAML names).
-DATATYPES_FILENAME = INVENTORY_FILENAME
-
 INVENTORY_OVERRIDE_COLUMNS = (
     "include_override",
     "type_override",

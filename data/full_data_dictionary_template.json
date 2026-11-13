@@ -1,0 +1,146 @@
+{
+  "ACCRE": {
+    "name": "Academic Credentialing",
+    "short_name": "ACCRE",
+    "type": "real",
+    "path": "data/real/ACCRE/ACCRE.xes.gz"
+  },
+  "BPIC11": {
+    "name": "BPI Challenge 2011 (Dutch Academic Hospital)",
+    "short_name": "BPIC 2011",
+    "type": "real",
+    "path": "data/real/BPIC11/hospital_log.xes.gz"
+  },
+  "BPIC12": {
+    "name": "BPIC 2012 (Loan Applications)",
+    "short_name": "BPIC 2012",
+    "type": "real",
+    "path": "data/real/BPIC12/BPI_Challenge_2012.xes.gz"
+  },
+  "BPIC13_cp": {
+    "name": "BPI Challenge 2013, closed problems",
+    "short_name": "BPIC 2013 CP",
+    "type": "real",
+    "path": "data/real/BPIC13_cp/BPI_Challenge_2013_closed_problems.xes.gz"
+  },
+  "BPIC13_i": {
+    "name": "BPI Challenge 2013, incidents",
+    "short_name": "BPIC 2013 I",
+    "type": "real",
+    "path": "data/real/BPIC13_i/BPI_Challenge_2013_incidents.xes.gz"
+  },
+  "BPIC14": {
+    "name": "BPI Challenge 2014",
+    "short_name": "BPIC 2014",
+    "type": "real",
+    "path": "data/real/BPIC14/BPIC14.xes.gz"
+  },
+  "BPIC15_1": {
+    "name": "BPI Challenge 2015, Municipality 1",
+    "short_name": "BPIC 2015 M1",
+    "type": "real",
+    "path": "data/real/BPIC15_1/BPIC15_1.xes.gz"
+  },
+  "BPIC15_2": {
+    "name": "BPI Challenge 2015, Municipality 2",
+    "short_name": "BPIC 2015 M2",
+    "type": "real",
+    "path": "data/real/BPIC15_2/BPIC15_2.xes.gz"
+  },
+  "BPIC15_3": {
+    "name": "BPI Challenge 2015, Municipality 3",
+    "short_name": "BPIC 2015 M3",
+    "type": "real",
+    "path": "data/real/BPIC15_3/BPIC15_3.xes.gz"
+  },
+  "BPIC15_4": {
+    "name": "BPI Challenge 2015, Municipality 4",
+    "short_name": "BPIC 2015 M4",
+    "type": "real",
+    "path": "data/real/BPIC15_4/BPIC15_4.xes.gz"
+  },
+  "BPIC15_5": {
+    "name": "BPI Challenge 2015, Municipality 5",
+    "short_name": "BPIC 2015 M5",
+    "type": "real",
+    "path": "data/real/BPIC15_5/BPIC15_5.xes.gz"
+  },
+  "BPIC17": {
+    "name": "BPI Challenge 2017",
+    "short_name": "BPIC 2017",
+    "type": "real",
+    "path": "data/real/BPIC17/BPI Challenge 2017.xes.gz"
+  },
+  "BPIC18": {
+    "name": "BPI Challenge 2018 (EU Agriculture Subsidy)",
+    "short_name": "BPIC 2018",
+    "type": "real",
+    "path": "data/real/BPIC18/BPI Challenge 2018.xes.gz"
+  },
+  "BPIC19": {
+    "name": "BPI Challenge 2019",
+    "short_name": "BPIC 2019",
+    "type": "real",
+    "path": "data/real/BPIC19/BPI_Challenge_2019.xes.gz"
+  },
+  "BPIC20_dd": {
+    "name": "BPI Challenge 2020, Domestic Declarations",
+    "short_name": "BPIC 2020 DD",
+    "type": "real",
+    "path": "data/real/BPIC20_dd/DomesticDeclarations.xes.gz"
+  },
+  "BPIC20_id": {
+    "name": "BPI Challenge 2020, International Declarations",
+    "short_name": "BPIC 2020 ID",
+    "type": "real",
+    "path": "data/real/BPIC20_id/InternationalDeclarations.xes.gz"
+  },
+  "BPIC20_ptc": {
+    "name": "BPI Challenge 2020, Prepaid Travel Costs",
+    "short_name": "BPIC 2020 PTC",
+    "type": "real",
+    "path": "data/real/BPIC20_ptc/PrepaidTravelCost.xes.gz"
+  },
+  "BPIC20_rfp": {
+    "name": "BPI Challenge 2020, Request for Payment",
+    "short_name": "BPIC 2020 RFP",
+    "type": "real",
+    "path": "data/real/BPIC20_rfp/RequestForPayment.xes.gz"
+  },
+  "BPIC20_tpd": {
+    "name": "BPI Challenge 2020, Travel Permit Data",
+    "short_name": "BPIC 2020 TPD",
+    "type": "real",
+    "path": "data/real/BPIC20_tpd/PermitLog.xes.gz"
+  },
+  "CALL": {
+    "name": "Call center",
+    "short_name": "CALL",
+    "type": "real",
+    "path": "data/real/CALL/CALL.xes.gz"
+  },
+  "ITHD": {
+    "name": "Help Desk",
+    "short_name": "ITHD",
+    "type": "real",
+    "path": "data/real/ITHD/ITHD.xes.gz"
+  },
+  "MOBIS": {
+    "name": "MobIS Challenge 2019",
+    "short_name": "MOBIS",
+    "type": "real",
+    "path": "data/real/MOBIS/MOBIS.xes.gz"
+  },
+  "RTFMP": {
+    "name": "Road Traffic Fine Management Process",
+    "short_name": "RTFMP",
+    "type": "real",
+    "path": "data/real/RTFMP/Road_Traffic_Fine_Management_Process.xes.gz"
+  },
+  "SEPSIS": {
+    "name": "Sepsis Cases",
+    "short_name": "Sepsis",
+    "type": "real",
+    "path": "data/real/SEPSIS/Sepsis Cases - Event Log.xes.gz"
+  }
+}

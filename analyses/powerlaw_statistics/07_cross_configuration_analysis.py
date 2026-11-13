@@ -1,13 +1,13 @@
 """Step 07: cross-configuration sensitivity summary from saved Clauset results.
 
 Writes ``configurations.csv`` and ``sensitivity_summary.csv`` under
-``results/pl_stats/real/sensitivity``. Recalculates eligibility, GOF
-non-rejection, paired comparisons, and A–E categories across the adaptive
-one-at-a-time threshold settings. Fits, likelihood-ratio tests, and GOF
-bootstraps are not rerun.
+``<experiment>/sensitivity``. Recalculates eligibility, GOF non-rejection,
+paired comparisons, and A–E categories across the adaptive one-at-a-time
+threshold settings. Fits, likelihood-ratio tests, and GOF bootstraps are not
+rerun.
 
-Not part of ``main.py --combine`` (combine is one experiment / one xmin).
-Run after the adaptive results are available:
+``main.py`` runs this step for real-log experiments after compose. It can
+also be run alone:
 
     python analyses/powerlaw_statistics/07_cross_configuration_analysis.py
 """

@@ -32,7 +32,6 @@ from utils.constants import (
     DATA_DICTIONARY_PATH,
 )
 from analyses.powerlaw_statistics.analysis_helpers.paths import (
-    SATURATION_DIRNAME,
     concept_dirname,
     raw_results_dir,
     saturation_dir,
@@ -545,7 +544,6 @@ def write_saturation_diagnostics(output_dir: Path) -> Path | None:
     )
     frame = build_saturation_frame(profiles, extracted)
     validate_saturation_frame(frame)
-    _migrate_legacy_saturation_dir(output_dir)
     destination = saturation_dir(output_dir)
     write_saturation_tables(frame, destination)
     print(f"Saturation diagnostics: {len(frame)} log-order rows -> {destination}")
@@ -667,23 +665,6 @@ def _count_attachment_rows(path: Path) -> int:
         if not header:
             raise ValueError(f"empty attachment file: {path}")
         return sum(1 for line in handle if line.strip())
-
-
-def _migrate_legacy_saturation_dir(experiment: Path) -> None:
-    """Move a pre-log_info ``<experiment>/saturation`` folder under ``log_info``."""
-    legacy = Path(experiment) / SATURATION_DIRNAME
-    destination = saturation_dir(experiment)
-    if not legacy.is_dir():
-        return
-    if legacy.resolve() == destination.resolve():
-        return
-    if destination.exists():
-        raise FileExistsError(
-            f"cannot move {legacy} to {destination}: destination already exists"
-        )
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    legacy.rename(destination)
-    print(f"Saturation diagnostics: moved {legacy} -> {destination}")
 
 
 def _block_for_k(frame: pd.DataFrame, k: int) -> pd.DataFrame:

@@ -1,14 +1,16 @@
 """Ordered runner for the power-law statistics analysis pipeline.
 
-Default (serial): ``01 -> 02 -> 03 -> 05 -> 06`` (describe, extract, Clauset,
-cross-log, compose). Step 04 (combine) is skipped because there are no parallel
-shards.
+Default (serial), real-log experiments: ``01 -> 02 -> 03 -> 05 -> 06 -> 07``
+(describe, extract, Clauset, cross-log, compose, sensitivity). Step 04
+(combine) is skipped because there are no parallel shards. Step 07 runs only
+when the experiment directory name starts with ``real``.
 
 ``--parallel`` (one dataset): ``01 -> 02 -> 03`` only, writing per-log shards.
-After all array tasks finish, run ``--combine`` (or ``.slurm/powerlaw_statistics_combine.sh``)
-to execute ``04 -> 05 -> 06`` (merge shards, cross-log, compose).
+After every log has been run that way, ``--combine`` executes
+``04 -> 05 -> 06 -> 07`` (merge shards, cross-log, compose, sensitivity).
 
 ``--test`` runs TEST_BPIC12 with concepts variants, n1, n2 and fewer bootstraps.
+It does not run step 07.
 """
 
 from __future__ import annotations
@@ -45,6 +47,7 @@ STEPS: list[tuple[str, str]] = [
     ("04", "04_combine_parallel.py"),
     ("05", "05_cross_log_analysis.py"),
     ("06", "06_compose_results.py"),
+    ("07", "07_cross_configuration_analysis.py"),
 ]
 
 DEFAULT_CONCEPTS = [*NGRAM_CONCEPTS, "variants"]
@@ -63,10 +66,19 @@ def _load_step(module_filename: str):
     return module
 
 
+def _datasets_optional(args: argparse.Namespace) -> bool:
+    """Steps 04–07 can run from saved results without a dataset list."""
+    if args.test or args.combine:
+        return True
+    selected = _selected_steps(args)
+    return bool(selected) and all(sid in {"04", "05", "06", "07"} for sid, _ in selected)
+
+
 def _resolve_datasets(raw: Sequence[str] | None) -> List[str]:
     if raw is None:
         raise SystemExit(
-            "Error: --datasets is required unless --test or --combine is set."
+            "Error: --datasets is required unless --test, --combine, "
+            "or a step range within 04–07 is set."
         )
     if len(raw) == 1 and raw[0] == ALL_REAL_LOGS_TOKEN:
         return list(ALL_REAL_LOG_DATASETS)
@@ -84,7 +96,7 @@ def _selected_steps(args: argparse.Namespace) -> list[tuple[str, str]]:
             )
         if args.parallel:
             raise SystemExit("Error: --combine cannot be used with --parallel.")
-        return [(sid, name) for sid, name in STEPS if sid in {"04", "05", "06"}]
+        return [(sid, name) for sid, name in STEPS if sid in {"04", "05", "06", "07"}]
 
     if args.only:
         wanted = {s.strip() for s in args.only.split(",") if s.strip()}
@@ -159,8 +171,19 @@ def _argv_for_step(
         argv.extend(passthrough)
         return argv
 
-    if step_id in {"05", "06"}:
-        # Datasets optional: omit to use all logs present in summaries / study set.
+    if step_id == "05":
+        # Concepts are fixed inside the cross-log step.
+        if datasets is not None:
+            argv.extend(["--datasets", *datasets])
+        if results_dir:
+            argv.extend(["--output-dir", results_dir])
+        if fixed_xmin is not None:
+            argv.extend(["--xmin", str(fixed_xmin)])
+        argv.extend(passthrough)
+        return argv
+
+    if step_id == "06":
+        # Datasets optional: omit to use all logs present in summaries.
         if datasets is not None:
             argv.extend(["--datasets", *datasets])
         argv.extend(["--concepts", *concepts])
@@ -168,6 +191,19 @@ def _argv_for_step(
             argv.extend(["--output-dir", results_dir])
         if fixed_xmin is not None:
             argv.extend(["--xmin", str(fixed_xmin)])
+        argv.extend(passthrough)
+        return argv
+
+    if step_id == "07":
+        if results_dir:
+            argv.extend(
+                [
+                    "--experiment",
+                    results_dir,
+                    "--output-dir",
+                    str(Path(results_dir) / "sensitivity"),
+                ]
+            )
         argv.extend(passthrough)
         return argv
 
@@ -214,7 +250,8 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run the power-law statistics analysis pipeline "
-            "(serial 01->02->03->05->06; parallel 01->02->03; --combine 04->05->06)"
+            "(serial 01->02->03->05->06->07; parallel 01->02->03; "
+            "--combine 04->05->06->07)"
         )
     )
     parser.add_argument(
@@ -223,7 +260,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         default=None,
         help=(
             "Dataset names, or ALL_REAL_LOGS / ALL_SIM_LOGS "
-            "(ignored when --test is set; optional with --combine)"
+            "(ignored when --test is set; optional for --combine and steps 04–07)"
         ),
     )
     parser.add_argument(
@@ -260,13 +297,13 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--from",
         dest="from_step",
         default=None,
-        help="First step id to run (01..06)",
+        help="First step id to run (01..07)",
     )
     parser.add_argument(
         "--to",
         dest="to_step",
         default=None,
-        help="Last step id to run (01..06)",
+        help="Last step id to run (01..07)",
     )
     parser.add_argument(
         "--only",
@@ -278,7 +315,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         "--parallel",
         action="store_true",
         help=(
-            "Per-log CSV shards for steps 01+03 (Slurm array). "
+            "Per-log CSV shards for steps 01 and 03. "
             "Requires exactly one dataset. Runs 01->02->03 only; "
             "afterwards use --combine."
         ),
@@ -289,7 +326,8 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
         help=(
             "After parallel shards exist: run step 04 (merge log_info + Clauset), "
             "step 05 (cross-log saturation / paired GOF / explore), "
-            "then step 06 (compose tables/plots)."
+            "step 06 (compose tables/plots), and step 07 (sensitivity) "
+            "for real-log experiments."
         ),
     )
     parser.add_argument(
@@ -337,7 +375,7 @@ def main(argv: List[str] | None = None) -> None:
     args = parse_args(argv)
     if args.test:
         datasets: List[str] | None = [TEST_DATASET]
-    elif args.combine and args.datasets is None:
+    elif args.datasets is None and _datasets_optional(args):
         datasets = None
     else:
         datasets = _resolve_datasets(args.datasets)
@@ -356,6 +394,17 @@ def main(argv: List[str] | None = None) -> None:
 
     results_dir = _results_dir(args, datasets)
     selected = _selected_steps(args)
+    # Step 07 reads the adaptive real-log summaries. Skip it on the default
+    # path for smoke tests and non-real experiments; --only/--from/--to still
+    # run it when requested.
+    if (
+        args.only is None
+        and args.from_step is None
+        and args.to_step is None
+        and results_dir is not None
+        and not Path(results_dir).name.startswith("real")
+    ):
+        selected = [(sid, name) for sid, name in selected if sid != "07"]
 
     pipeline_t0 = time.perf_counter()
     for step_id, filename in selected:

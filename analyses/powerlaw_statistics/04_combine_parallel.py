@@ -24,8 +24,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from cli.log_info import IDENTITY_COLUMNS, _write_latex_from_csv
 from utils.constants import PL_STATS_REAL_DIR
+from utils.log_info import IDENTITY_COLUMNS, write_log_info_latex
 from utils.csv_shards import concat_sorted_csvs, filter_shards_by_log, log_results_dir
 from utils.io.attachments import NGRAM_CONCEPTS
 from analyses.powerlaw_statistics.analysis_helpers.paths import concept_dirname, log_info_dir, raw_results_dir
@@ -81,7 +81,7 @@ def combine_log_info(
     combined.to_csv(csv_path, index=False)
     print(f"Combined {len(matches)} shard(s) -> {csv_path}")
     stats = [column for column in combined.columns if column not in IDENTITY_COLUMNS]
-    _write_latex_from_csv(combined, tex_path, stats)
+    write_log_info_latex(combined, tex_path, stats)
 
 
 def combine_clauset(

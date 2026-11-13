@@ -445,10 +445,6 @@ def install_pdf(built_pdf: Path, paths: AppendixPaths) -> list[Path]:
         paths.perm_pdf.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(built_pdf, paths.perm_pdf)
         installed.append(paths.perm_pdf)
-        legacy = paths.perm_pdf.parent / "powerlaw_online_appendix.pdf"
-        if legacy.is_file():
-            legacy.unlink()
-            print(f"Removed legacy perm PDF: {legacy}")
     return installed
 
 

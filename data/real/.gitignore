@@ -4,6 +4,8 @@
 !BPIC12/**
 !RTFMP/
 !RTFMP/**
+!TEST_BPIC12/
+!TEST_BPIC12/**
 **/original_log.xes.gz
 **/original_log.xes
 **/*.verify.xes.gz

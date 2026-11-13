@@ -75,12 +75,6 @@ SUMMARY_COLUMNS: tuple[str, ...] = (
     "paired_holm_significant_orders",
     "paired_holm_significance_changes",
 )
-OBSOLETE_OUTPUT_NAMES: tuple[str, ...] = (
-    "paired_gof_sensitivity.csv",
-    "changes_vs_baseline.csv",
-    "category_sensitivity.csv",
-    "README.md",
-)
 
 
 @dataclass(frozen=True)
@@ -123,7 +117,6 @@ CONFIGURATIONS: tuple[Configuration, ...] = (
     Configuration("comp_020", None, 50, 0.10, 0.20),
 )
 
-# Kept for tests / callers that still distinguish paired vs category OAT rows.
 PAIRED_SETTING_NAMES: tuple[str, ...] = tuple(
     config.setting
     for config in CONFIGURATIONS
@@ -831,10 +824,8 @@ def build_sensitivity(
     *,
     study_logs: Sequence[str] | None = None,
     concepts: Sequence[str] | None = None,
-    check_saved_baseline: bool = False,
 ) -> SensitivityResult:
     """Build the sensitivity summary from one experiment directory."""
-    del check_saved_baseline  # retained for call-site compatibility
     experiment_dir = Path(experiment_dir)
     if not experiment_dir.is_dir():
         raise FileNotFoundError(f"experiment directory does not exist: {experiment_dir}")
@@ -1229,37 +1220,12 @@ def write_sensitivity_tex_from_csv(output_dir: Path) -> list[Path]:
     return written
 
 
-def cleanup_obsolete_outputs(output_dir: Path) -> list[str]:
-    """Delete superseded sensitivity presentation files. Returns removed paths."""
-    output_dir = Path(output_dir)
-    removed: list[str] = []
-    for name in OBSOLETE_OUTPUT_NAMES:
-        path = output_dir / name
-        if path.is_file():
-            path.unlink()
-            removed.append(str(path))
-    leftover_dir = output_dir / "paired_gof_comparison"
-    if leftover_dir.is_dir():
-        # Only plots previously generated under sensitivity/; safe to remove.
-        for path in sorted(leftover_dir.rglob("*"), reverse=True):
-            if path.is_file():
-                path.unlink()
-                removed.append(str(path))
-            elif path.is_dir():
-                path.rmdir()
-        leftover_dir.rmdir()
-        removed.append(str(leftover_dir))
-    return removed
-
-
-def write_sensitivity(result: SensitivityResult, output_dir: Path) -> list[str]:
+def write_sensitivity(result: SensitivityResult, output_dir: Path) -> None:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    removed = cleanup_obsolete_outputs(output_dir)
     write_table(result.configurations, output_dir / "configurations.csv")
     write_table(result.summary, output_dir / "sensitivity_summary.csv")
     write_sensitivity_tex(result, output_dir)
-    return removed
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -1282,8 +1248,8 @@ def main(argv: list[str] | None = None) -> None:
         help="Output directory (default: results/pl_stats/real/sensitivity)",
     )
     args = parser.parse_args(argv)
-    result = build_sensitivity(args.experiment, check_saved_baseline=False)
-    removed = write_sensitivity(result, args.output_dir)
+    result = build_sensitivity(args.experiment)
+    write_sensitivity(result, args.output_dir)
     ok = result.summary[result.summary["input_status"] == "ok"]
     incomplete = result.summary[result.summary["input_status"] != "ok"]
     print(
@@ -1301,12 +1267,6 @@ def main(argv: list[str] | None = None) -> None:
             print(f"  - {message}")
     else:
         print("Validation warnings: none")
-    if removed:
-        print("Obsolete sensitivity outputs removed:")
-        for path in removed:
-            print(f"  - {path}")
-    else:
-        print("Obsolete sensitivity outputs removed: none")
 
 
 if __name__ == "__main__":
