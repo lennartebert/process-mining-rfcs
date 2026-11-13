@@ -160,6 +160,19 @@ Outputs land in `results/pl_stats/real/sensitivity/`
 Fits and bootstraps are not rerun. `--experiment` defaults to
 `results/pl_stats/real`.
 
+## Online appendix
+
+Standalone LaTeX appendix sources live under
+`analyses/powerlaw_statistics/appendix/`. Step 06 writes transition-overview
+`.tex` files next to the explore CSVs; step 07 writes sensitivity `.tex`
+tables. Assemble and compile with:
+
+```bash
+python analyses/powerlaw_statistics/appendix/generate.py
+```
+
+The PDF is written to `results/pl_stats/powerlaw_online_appendix.pdf`.
+
 ## Saturation
 
 Step 05 writes cross-log saturation tables for real-log experiments (directory name starting with `real`), under `<experiment>/log_info/saturation/`:
