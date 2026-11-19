@@ -4,13 +4,19 @@ Clauset-style power-law tests of trace-variant and n-gram (n1..n20) frequencies
 for the ICPM 2027 submission *Assessing Power-Law Compatibility of Process
 Behavior Frequencies Across Orders of Behavioral Abstraction*.
 
-Run commands from the repository root. Copy a data dictionary to
-`data/data_dictionary.json` first: `data/default_data_dictionary.json` for the
-shipped logs, or `data/full_data_dictionary_template.json` after you have
-placed the 24 benchmark logs at the paths in that file. Those 24 logs are not
-in this repository. Sources are in the repository README.
+Run commands from the repository root.
+`data/full_data_dictionary_template.json` is a pre-populated template for the
+24-log benchmark. Copy it to `data/data_dictionary.json` first, and place any
+logs that are not already in this repository at the paths in that file.
+Sources are in the repository README.
 
 ```bash
+# CVS pharmacy: variants, adaptive xmin, 2500 bootstraps.
+# First line fits and composes at 30 fitted types (gof-p 0.10, comparison-p 0.10).
+# Second line recomposes the same fit at 50 fitted types.
+python analyses/powerlaw_statistics/main.py --datasets CVS --concepts variants --output-dir results/pl_stats/synth_example --n-bootstraps 2500 --only 01,02,03,06
+python analyses/powerlaw_statistics/main.py --datasets CVS --concepts variants --output-dir results/pl_stats/synth_example --only 06 -- --min-types 50
+
 # Serial real-log pipeline: 01 -> 02 -> 03 -> 05 -> 06 -> 07
 python analyses/powerlaw_statistics/main.py --datasets BPIC12
 

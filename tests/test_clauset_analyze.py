@@ -198,9 +198,9 @@ class ClassificationLabelTests(unittest.TestCase):
             {
                 "A": "Ineligible for assessment",
                 "B": "PL rejected",
-                "C": "PL not rejected; alternative favored",
-                "D": "PL not rejected; PL favored",
-                "E": "PL not rejected; no decisive preference",
+                "C": "PL plausible but alternative favored",
+                "D": "PL plausible and favored over alternatives",
+                "E": "PL plausible and alternatives inconclusive",
             },
         )
 

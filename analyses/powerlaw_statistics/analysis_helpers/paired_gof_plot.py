@@ -25,9 +25,12 @@ PLOT_STEM = "paired_gof_comparison"
 CAPTION_NAME = "paired_gof_comparison_caption.tex"
 HOLM_ROW = "mcnemar_p_holm_k_le_20"
 SIGNIFICANCE = 0.05
-MAX_P_ANNOTATIONS = 4
 KS = tuple(range(1, 21))
-FIGSIZE_IN = (14.5 / 2.54, 7.0 / 2.54)
+# Appendix text width (A4, 2.2 cm margins) by the on-page height of the
+# previous 14.5 cm by 7.0 cm figure. Legend anchors below are tuned for this size.
+FIGSIZE_IN = (16.6 / 2.54, 8.0 / 2.54)
+# Centers, in axes coordinates, that equalize the gaps between the three keys.
+LEGEND_X = (0.18, 0.455, 0.78)
 DEFAULT_YLIM = (-20.0, 100.0)
 AXIS_NUMBER_FONTSIZE = 8
 CONFIG_DIR_RE = re.compile(
@@ -128,12 +131,6 @@ def shared_ylim(frames: Sequence[pd.DataFrame]) -> tuple[float, float]:
     return low - pad, high + pad + 6.0
 
 
-def format_holm_p(p_value: float) -> str:
-    if p_value < 0.001:
-        return "Holm p < 0.001"
-    return f"Holm p = {p_value:.3f}"
-
-
 def build_paired_gof_caption(
     *,
     min_types: int,
@@ -153,11 +150,13 @@ def build_paired_gof_caption(
         f"The xmin policy is {xmin_label}. "
         "Error bars are pointwise 95 percent Newcombe confidence intervals "
         "for paired proportions. "
-        "Filled points indicate two-sided exact McNemar p-values below 0.05 "
-        "after Holm adjustment for the planned comparison family of "
-        "abstraction orders 1 through 20. "
+        "Filled points indicate two-sided exact McNemar tests with "
+        "Holm-adjusted p-values at or below 0.05 for the planned comparison "
+        "family of abstraction orders 1 through 20. "
+        "Open points are not significant at that threshold. "
         "N gives the number of paired logs. "
-        "NA indicates an unavailable estimate. "
+        "Order 1 is left blank when the estimate is unavailable. "
+        "NA indicates an unavailable estimate at a later order. "
         "The intervals are pointwise. "
         "An interval that excludes zero need not remain significant after "
         "Holm adjustment."
@@ -169,6 +168,61 @@ def write_paired_gof_caption(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text.rstrip() + "\n", encoding="utf-8")
     print(f"Saved: {path}")
+
+
+def _draw_paired_gof_legend(ax) -> None:
+    """One legend row above the axes, with equal gaps between the keys."""
+    from matplotlib.lines import Line2D
+
+    whisker = ax.errorbar(
+        [np.nan],
+        [np.nan],
+        yerr=[[1.0], [1.0]],
+        fmt="none",
+        ecolor="#4a4a4a",
+        elinewidth=1.0,
+        capsize=2.5,
+        capthick=1.0,
+    )
+    open_dot = Line2D(
+        [],
+        [],
+        marker="o",
+        markersize=5.5,
+        markerfacecolor="white",
+        markeredgecolor="black",
+        markeredgewidth=1.0,
+        linestyle="None",
+    )
+    filled_dot = Line2D(
+        [],
+        [],
+        marker="o",
+        markersize=5.5,
+        markerfacecolor="black",
+        markeredgecolor="black",
+        markeredgewidth=1.0,
+        linestyle="None",
+    )
+    entries = [
+        (whisker, "95% confidence intervals", LEGEND_X[0]),
+        (open_dot, "Non-significant", LEGEND_X[1]),
+        (filled_dot, "Significant (Holm-adjusted $p \\leq 0.05$)", LEGEND_X[2]),
+    ]
+    for handle, label, x in entries:
+        legend = ax.legend(
+            [handle],
+            [label],
+            loc="lower center",
+            bbox_to_anchor=(x, 1.015),
+            frameon=False,
+            fontsize=7.5,
+            handlelength=1.6,
+            handleheight=1.4,
+            handletextpad=0.45,
+            borderaxespad=0.0,
+        )
+        ax.add_artist(legend)
 
 
 def plot_paired_gof_comparison(
@@ -215,28 +269,27 @@ def plot_paired_gof_comparison(
     )
     ax.tick_params(axis="y", labelsize=AXIS_NUMBER_FONTSIZE)
 
-    significant_ks: list[int] = []
     for _, row in ordered.iterrows():
         k = int(row["k"])
         if not estimate_available(row):
-            ax.text(
-                k,
-                0.0,
-                "NA",
-                ha="center",
-                va="bottom",
-                fontsize=7,
-                color="#b0b0b0",
-                zorder=3,
-            )
+            # k = 1 is an empty comparison. Leave that column blank.
+            if k != 1:
+                ax.text(
+                    k,
+                    0.0,
+                    "NA",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color="#b0b0b0",
+                    zorder=3,
+                )
             continue
         diff = float(row["difference_pp"])
         lo = float(row["ci95_lower_pp"])
         hi = float(row["ci95_upper_pp"])
         p_holm = _finite(row["p_holm"])
         is_sig = p_holm is not None and p_holm < SIGNIFICANCE
-        if is_sig:
-            significant_ks.append(k)
         ax.errorbar(
             k,
             diff,
@@ -259,25 +312,6 @@ def plot_paired_gof_comparison(
             linestyle="None",
             zorder=4,
         )
-
-    annotate = 0 < len(significant_ks) <= MAX_P_ANNOTATIONS
-    if annotate:
-        for _, row in ordered.iterrows():
-            k = int(row["k"])
-            p_holm = _finite(row["p_holm"])
-            if p_holm is None or p_holm >= SIGNIFICANCE or not estimate_available(row):
-                continue
-            hi = float(row["ci95_upper_pp"])
-            ax.text(
-                k,
-                hi + 0.03 * (y1 - y0),
-                format_holm_p(p_holm),
-                ha="center",
-                va="bottom",
-                fontsize=7,
-                color="black",
-                zorder=5,
-            )
 
     ax.set_ylabel(
         "Difference in GOF non-rejection share\n"
@@ -348,7 +382,8 @@ def plot_paired_gof_comparison(
             color="#666666",
         )
 
-    fig.subplots_adjust(left=0.14, right=0.99, top=0.90, bottom=0.28)
+    _draw_paired_gof_legend(ax)
+    fig.subplots_adjust(left=0.115, right=0.985, top=0.84, bottom=0.22)
     fig.savefig(output_path, dpi=300)
     print(f"Saved: {output_path}")
     png_path = output_path.with_suffix(".png")

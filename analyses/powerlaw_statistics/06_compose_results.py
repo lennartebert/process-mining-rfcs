@@ -8,6 +8,8 @@ land under ``raw_results/plots/<log>/`` (use ``--skip-plots`` to omit them).
 The fitted-type count matrix is also threshold-free and is written next to the raw fits.
 
 - variant power-law table (CSV + LaTeX)
+- trace-variant pairwise model-comparison table (LaTeX beside ``comparison.csv``)
+- summary counts of those comparisons for logs outside categories A and B
 - per-log RFC / PDF / CCDF plots for variants (shared ``plots/``)
 - log x n fitted-types matrix (CSV)
 - log x n scaling matrix (CSV + LaTeX with legend)
@@ -32,6 +34,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from utils.powerlaw import (
+    CLASSIFICATION_ALTERNATIVES,
     CLASSIFICATION_CELL_COLORS,
     CLASSIFICATION_CODES,
     CLASSIFICATION_LABEL_TEXT_COLORS,
@@ -142,6 +145,9 @@ def build_variant_tex_footnote() -> str:
         "\\end{center}"
     )
 
+
+# Likelihood-ratio statistic in generated tables (Clauset et al. use script R).
+LLR_STATISTIC_TEX = r"$\mathcal{R}$"
 
 VARIANT_ALTERNATIVE_ABBREV = {
     "power_law": "PL",
@@ -514,7 +520,7 @@ def variant_power_law_dataframe_to_latex(
         (
             f"Log & $\\alpha$ & $x_{{\\min}}$ & \\# & \\% & $\\geq {minimum_fitted_types}$?"
             f" & $p_{{\\text{{GOF}}}}$ & $p_{{\\text{{GOF}}}} \\geq {gof}$"
-            f" & Model & $R$ & $p_{{\\text{{comp.}}}}$ & Result & "
+            f" & Model & {LLR_STATISTIC_TEX} & $p_{{\\text{{comp.}}}}$ & Result & "
             r"\\"
         ),
         r"\midrule",
@@ -1101,14 +1107,387 @@ def scaling_dataframe_to_latex(scaling_df: pd.DataFrame) -> str:
 def build_best_alternative_tex_footnote(
     *,
     comparison_p: float = DEFAULT_SIGNIFICANCE_LEVEL,
+    include_unavailable: bool = False,
+    break_before_bold: bool = False,
 ) -> str:
     cmp_p = _format_threshold(comparison_p)
+    unavailable = (
+        "; ``?'' denotes unavailable or ineligible results"
+        if include_unavailable
+        else ""
+    )
+    joiner = ";\\\\\n" if break_before_bold else "; "
     return (
         "\\begin{center}\\footnotesize\n"
         "Models: PL~=~Power law, LN~=~Log-normal, Exp~=~Exponential, "
-        f"StExp~=~Stretched exponential; Bold: p-value $< {cmp_p}$\n"
+        "StExp~=~Stretched exponential"
+        f"{joiner}Bold: p-value $< {cmp_p}${unavailable}\n"
         "\\end{center}"
     )
+
+
+def _comparison_model_label(model_1: object, model_2: object) -> str:
+    """Short-form label for one pairwise comparison, e.g. ``PL vs LN``."""
+    return (
+        f"{abbreviate_alternative_model(model_1)} vs "
+        f"{abbreviate_alternative_model(model_2)}"
+    )
+
+
+def _preferred_model_tex(
+    name: object,
+    p_value: float | None,
+    *,
+    comparison_p_threshold: float,
+) -> str:
+    """Preferred-model abbreviation, bold when the comparison is significant."""
+    abbrev = abbreviate_alternative_model(name)
+    if abbrev == "N/A":
+        return abbrev
+    escaped = escape_latex(abbrev)
+    if p_value is not None and p_value < comparison_p_threshold:
+        return rf"\textbf{{{escaped}}}"
+    return escaped
+
+
+# Row order within each log in the trace-variant comparison table.
+VARIANT_COMPARISON_MODEL_ORDER = (
+    "exponential",
+    "stretched_exponential",
+    "lognormal",
+)
+
+VARIANT_COMPARISON_CAPTION = (
+    r"\caption[Pairwise model comparisons at the trace-variant level]"
+    "{Pairwise likelihood-ratio comparisons of the power law against each "
+    "alternative at the trace-variant level. "
+    "N/A denotes an unavailable comparison.}"
+)
+
+
+def variant_model_comparison_to_latex(
+    comparison_df: pd.DataFrame,
+    *,
+    comparison_p_threshold: float = DEFAULT_SIGNIFICANCE_LEVEL,
+) -> str:
+    """One row per log and pairwise alternative comparison.
+
+    Returns the interior of a ``longtable`` (headers, rows, and foot).
+    Log names follow the CSV order and are printed only on the first row of
+    each log. Within a log the alternatives are Exp, StExp, then LN.
+    Truncated power law is omitted. The preferred-model cell is bold when
+    ``p`` is below ``comparison_p_threshold``.
+    """
+    header = (
+        f"Log & Model & {LLR_STATISTIC_TEX} & $p$ & Preferred model " + r"\\"
+    )
+    lines = [
+        r"\toprule",
+        header,
+        r"\midrule",
+        r"\endfirsthead",
+        r"\multicolumn{5}{@{}l}{\footnotesize\textit{Continued from previous page}} \\",
+        r"\toprule",
+        header,
+        r"\midrule",
+        r"\endhead",
+        r"\bottomrule",
+        r"\endfoot",
+    ]
+    if comparison_df is None or comparison_df.empty or "model_2" not in comparison_df.columns:
+        return "\n".join(lines)
+
+    frame = comparison_df.loc[
+        comparison_df["model_2"].astype(str).isin(CLASSIFICATION_ALTERNATIVES)
+    ]
+    if "log_name" in frame.columns:
+        log_names = list(dict.fromkeys(frame["log_name"].astype(str)))
+    else:
+        log_names = [""]
+        frame = frame.copy()
+        frame["log_name"] = ""
+
+    model_rank = {
+        name: index for index, name in enumerate(VARIANT_COMPARISON_MODEL_ORDER)
+    }
+    first_log = True
+    for log_name in log_names:
+        rows = frame.loc[frame["log_name"].astype(str) == log_name]
+        if rows.empty:
+            continue
+        rows = rows.assign(
+            _model_order=rows["model_2"].astype(str).map(
+                lambda name: model_rank.get(name, len(model_rank))
+            )
+        ).sort_values("_model_order", kind="stable")
+        if not first_log:
+            lines.append(r"\midrule")
+        first_log = False
+        first_row = True
+        for _, row in rows.iterrows():
+            p_value = _optional_float(row.get("p"))
+            cells = [
+                escape_latex(log_name) if first_row else "",
+                escape_latex(
+                    _comparison_model_label(row.get("model_1"), row.get("model_2"))
+                ),
+                _format_tex_decimal(row.get("R")),
+                _format_tex_decimal(p_value),
+                _preferred_model_tex(
+                    row.get("preferred_model"),
+                    p_value,
+                    comparison_p_threshold=comparison_p_threshold,
+                ),
+            ]
+            first_row = False
+            lines.append(" & ".join(cells) + r" \\")
+    return "\n".join(lines)
+
+
+def write_variant_model_comparison_tex(
+    comparison_csv: Path,
+    *,
+    comparison_p_threshold: float = DEFAULT_SIGNIFICANCE_LEVEL,
+    datasets: Sequence[str] | None = None,
+    tex_path: Path | None = None,
+) -> Path | None:
+    """Write ``comparison.tex`` next to a trace-variant ``comparison.csv``."""
+    csv_path = Path(comparison_csv)
+    if not csv_path.is_file():
+        print(f"No comparison CSV at {csv_path}; skipping comparison TeX")
+        return None
+    destination = Path(tex_path) if tex_path is not None else csv_path.with_suffix(".tex")
+    frame = pd.read_csv(csv_path)
+    if datasets is not None and "log_name" in frame.columns:
+        wanted = {str(name) for name in datasets}
+        frame = frame.loc[frame["log_name"].astype(str).isin(wanted)]
+    body = variant_model_comparison_to_latex(
+        frame, comparison_p_threshold=comparison_p_threshold
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    # Full longtable, not a fragment: ``\input`` is not expandable, so a body
+    # that starts with ``\toprule`` cannot be inserted after ``\\``.
+    destination.write_text(
+        "\n".join(
+            [
+                "% Pairwise likelihood-ratio comparisons. Do not edit by hand.",
+                r"{\small",
+                r"\begin{longtable}{@{}llrrl@{}}",
+                VARIANT_COMPARISON_CAPTION,
+                r"\label{tab:variant-model-comparisons}\\",
+                body,
+                r"\end{longtable}",
+                build_best_alternative_tex_footnote(
+                    comparison_p=comparison_p_threshold,
+                    break_before_bold=True,
+                ),
+                r"}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    print(f"Saved: {destination}")
+    return destination
+
+
+_COMPARISON_SUMMARY_OUTCOMES = (
+    ("other", "Other distribution significantly better"),
+    ("inconclusive", "Inconclusive"),
+    ("pl", "PL significantly better"),
+)
+
+
+def _pairwise_comparison_outcome(
+    r_value: float | None,
+    p_value: float | None,
+    *,
+    comparison_p_threshold: float,
+) -> str:
+    """One cell of the A/B-excluded summary: other, pl, or inconclusive."""
+    if (
+        r_value is None
+        or p_value is None
+        or not np.isfinite(r_value)
+        or not np.isfinite(p_value)
+    ):
+        return "inconclusive"
+    if p_value < comparison_p_threshold and r_value < 0:
+        return "other"
+    if p_value < comparison_p_threshold and r_value > 0:
+        return "pl"
+    return "inconclusive"
+
+
+def variant_comparison_summary_counts(
+    comparison_df: pd.DataFrame,
+    summary_df: pd.DataFrame,
+    *,
+    minimum_fitted_types: int,
+    gof_p_threshold: float,
+    comparison_p_threshold: float,
+) -> tuple[list[str], dict[str, dict[str, int]]]:
+    """Count pairwise outcomes for logs that are not in category A or B.
+
+    Categories use ``compact_classification`` with the given thresholds.
+    Each column is one alternative in ``VARIANT_COMPARISON_MODEL_ORDER``.
+    A missing or non-finite comparison counts as inconclusive.
+    """
+    counts = {
+        model: {key: 0 for key, _label in _COMPARISON_SUMMARY_OUTCOMES}
+        for model in VARIANT_COMPARISON_MODEL_ORDER
+    }
+    if (
+        summary_df is None
+        or summary_df.empty
+        or "log_name" not in summary_df.columns
+    ):
+        return [], counts
+
+    eligible: list[str] = []
+    for _, src in summary_df.iterrows():
+        log_name = str(src["log_name"])
+        code = _compact_from_summary_row(
+            src,
+            comparison_df,
+            log_name=log_name,
+            minimum_fitted_types=minimum_fitted_types,
+            gof_p_threshold=gof_p_threshold,
+            comparison_p_threshold=comparison_p_threshold,
+        )
+        if code in {"A", "B"}:
+            continue
+        eligible.append(log_name)
+        rows = _comparison_for_log(comparison_df, log_name)
+        for model in VARIANT_COMPARISON_MODEL_ORDER:
+            if rows.empty or "model_2" not in rows.columns:
+                matched = rows.iloc[0:0]
+            else:
+                matched = rows.loc[rows["model_2"].astype(str) == model]
+            if matched.empty:
+                outcome = "inconclusive"
+            else:
+                row = matched.iloc[0]
+                outcome = _pairwise_comparison_outcome(
+                    _optional_float(row.get("R")),
+                    _optional_float(row.get("p")),
+                    comparison_p_threshold=comparison_p_threshold,
+                )
+            counts[model][outcome] += 1
+    return eligible, counts
+
+
+def variant_comparison_summary_to_latex(
+    comparison_df: pd.DataFrame,
+    summary_df: pd.DataFrame,
+    *,
+    minimum_fitted_types: int,
+    gof_p_threshold: float = DEFAULT_SIGNIFICANCE_LEVEL,
+    comparison_p_threshold: float = DEFAULT_SIGNIFICANCE_LEVEL,
+) -> str:
+    """Full ``table`` environment summarising logs outside categories A and B."""
+    eligible, counts = variant_comparison_summary_counts(
+        comparison_df,
+        summary_df,
+        minimum_fitted_types=minimum_fitted_types,
+        gof_p_threshold=gof_p_threshold,
+        comparison_p_threshold=comparison_p_threshold,
+    )
+    n_logs = len(eligible)
+    log_word = "log" if n_logs == 1 else "logs"
+    gof = _format_threshold(gof_p_threshold)
+    cmp_p = _format_threshold(comparison_p_threshold)
+    headers = [
+        _comparison_model_label("lower_bounded_power_law", model)
+        for model in VARIANT_COMPARISON_MODEL_ORDER
+    ]
+    lines = [
+        r"\begin{table}[H]",
+        r"\centering",
+        (
+            r"\caption{Summary of alternative-model tests for "
+            f"{n_logs} {log_word} not in category A or B.}}"
+        ),
+        r"\label{tab:variant-comparison-summary}",
+        r"{\small",
+        r"\begin{tabular}{@{}lccc@{}}",
+        r"\toprule",
+        " & " + " & ".join(escape_latex(header) for header in headers) + r" \\",
+        r"\midrule",
+    ]
+    for key, label in _COMPARISON_SUMMARY_OUTCOMES:
+        cells = [escape_latex(label)]
+        cells.extend(str(counts[model][key]) for model in VARIANT_COMPARISON_MODEL_ORDER)
+        lines.append(" & ".join(cells) + r" \\")
+    lines.extend(
+        [
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"}",
+            r"\begin{center}\footnotesize",
+            (
+                f"Excluded: category A (invalid fit, missing GOF, or fewer than "
+                f"{minimum_fitted_types} fitted types) and category B "
+                f"(GOF $p<{gof}$).\\\\"
+            ),
+            f"Significant: likelihood-ratio $p<{cmp_p}$.",
+            r"\end{center}",
+            r"\end{table}",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def write_variant_comparison_summary_tex(
+    comparison_csv: Path,
+    *,
+    summary_csv: Path | None = None,
+    minimum_fitted_types: int = DEFAULT_MINIMUM_FITTED_TYPES,
+    gof_p_threshold: float = DEFAULT_SIGNIFICANCE_LEVEL,
+    comparison_p_threshold: float = DEFAULT_SIGNIFICANCE_LEVEL,
+    datasets: Sequence[str] | None = None,
+    tex_path: Path | None = None,
+) -> Path | None:
+    """Write ``comparison_summary.tex`` next to a trace-variant ``comparison.csv``."""
+    csv_path = Path(comparison_csv)
+    summary_path = (
+        Path(summary_csv) if summary_csv is not None else csv_path.with_name("summary.csv")
+    )
+    if not csv_path.is_file() or not summary_path.is_file():
+        print(
+            "No comparison/summary CSV for the category summary "
+            f"({csv_path}, {summary_path}); skipping"
+        )
+        return None
+    comparison_df = pd.read_csv(csv_path)
+    summary_df = pd.read_csv(summary_path)
+    if datasets is not None:
+        wanted = {str(name) for name in datasets}
+        if "log_name" in comparison_df.columns:
+            comparison_df = comparison_df.loc[
+                comparison_df["log_name"].astype(str).isin(wanted)
+            ]
+        if "log_name" in summary_df.columns:
+            summary_df = summary_df.loc[summary_df["log_name"].astype(str).isin(wanted)]
+    destination = (
+        Path(tex_path) if tex_path is not None else csv_path.with_name("comparison_summary.tex")
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        "% Counts of pairwise comparisons for logs outside categories A and B. "
+        "Do not edit by hand.\n"
+        + variant_comparison_summary_to_latex(
+            comparison_df,
+            summary_df,
+            minimum_fitted_types=minimum_fitted_types,
+            gof_p_threshold=gof_p_threshold,
+            comparison_p_threshold=comparison_p_threshold,
+        ),
+        encoding="utf-8",
+    )
+    print(f"Saved: {destination}")
+    return destination
 
 
 def best_alternative_dataframe_to_latex(
@@ -1527,7 +1906,8 @@ def write_across_logs_outputs(
         compose_dir / "across_logs_best_alternative.tex",
         caption="Log x n best-fitting distribution",
         legend_tex=build_best_alternative_tex_footnote(
-            comparison_p=comparison_p_threshold
+            comparison_p=comparison_p_threshold,
+            include_unavailable=True,
         ),
         latex_body=best_alternative_dataframe_to_latex(
             best_alt_df, best_alt_significant_df
@@ -1818,6 +2198,19 @@ def main(argv: List[str] | None = None) -> None:
                 minimum_fitted_types=min_types,
                 gof_p_threshold=gof_p_threshold,
             ),
+        )
+        write_variant_model_comparison_tex(
+            _comparison_path(tests_root, "variants", model),
+            comparison_p_threshold=comparison_p_threshold,
+            datasets=datasets,
+        )
+        write_variant_comparison_summary_tex(
+            _comparison_path(tests_root, "variants", model),
+            summary_csv=_summary_path(tests_root, "variants", model),
+            minimum_fitted_types=min_types,
+            gof_p_threshold=gof_p_threshold,
+            comparison_p_threshold=comparison_p_threshold,
+            datasets=datasets,
         )
         if args.skip_plots:
             print("Skipping per-log RFC/PDF/CCDF plots (--skip-plots)")

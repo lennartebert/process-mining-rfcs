@@ -1091,10 +1091,9 @@ def _format_summary_tex_cell(column: str, value: object) -> str:
 
 
 def configurations_dataframe_to_latex(frame: pd.DataFrame) -> str:
-    columns = list(frame.columns)
+    columns = [column for column in frame.columns if column != "xmin"]
     headers = {
         "setting": "Setting",
-        "xmin": "$x_{\\min}$ policy",
         "min_types": "Min.\\ fitted types",
         "p_gof": "GOF $p$ threshold",
         "p_comp": "Comparison $p$ threshold",

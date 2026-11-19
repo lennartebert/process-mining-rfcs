@@ -187,7 +187,7 @@ cython_debug/
 # VS Code specific ignores
 .vscode/
 
-# User-specific data dictionary (default_data_dictionary.json is the template)
+# User-specific data dictionary (full_data_dictionary_template.json is the pre-populated template)
 data/data_dictionary.json
 
 # Slurm job scripts and logs

@@ -4,7 +4,7 @@
 \toprule
  & \multicolumn{2}{c}{Fitting result} & \multicolumn{3}{c}{1. Fitted types} & \multicolumn{2}{c}{2. GOF} & \multicolumn{4}{c}{3. Best alternative} & Category \\
 \cmidrule(lr){2-3}\cmidrule(lr){4-6}\cmidrule(lr){7-8}\cmidrule(lr){9-12}
-Log & $\alpha$ & $x_{\min}$ & \# & \% & $\geq 0$? & $p_{\text{GOF}}$ & $p_{\text{GOF}} \geq 0.1$ & Model & $R$ & $p_{\text{comp.}}$ & Result & \\
+Log & $\alpha$ & $x_{\min}$ & \# & \% & $\geq 0$? & $p_{\text{GOF}}$ & $p_{\text{GOF}} \geq 0.1$ & Model & $\mathcal{R}$ & $p_{\text{comp.}}$ & Result & \\
 \midrule
 ACCRE & 1.83 & 1 & 65 & 100.0 & Yes & 0.90 & Yes & StExp & -0.25 & 0.62 & Inconclusive & \cellcolor[HTML]{19C8C8} E \\
 BPIC11 & 2.44 & 3 & 25 & 2.5 & Yes & 0.68 & Yes & LN & -0.02 & 0.82 & Inconclusive & \cellcolor[HTML]{19C8C8} E \\
@@ -34,5 +34,5 @@ SEPSIS & 2.54 & 2 & 62 & 7.3 & Yes & 0.76 & Yes & LN & -3.28 & 0.31 & Inconclusi
 \end{tabular}
 }
 \begin{center}\footnotesize
-Models: LN = Log normal, Exp = Exponential, StExp = Stretched exponential; \quad Category: A = Ineligible for assessment, B = PL rejected, C = PL not rejected; alternative favored, D = PL not rejected; PL favored, E = PL not rejected; no decisive preference.
+Models: LN = Log normal, Exp = Exponential, StExp = Stretched exponential; \quad Category: A = Ineligible for assessment, B = PL rejected, C = PL plausible but alternative favored, D = PL plausible and favored over alternatives, E = PL plausible and alternatives inconclusive.
 \end{center}
