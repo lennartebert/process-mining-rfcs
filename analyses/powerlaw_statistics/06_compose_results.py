@@ -46,7 +46,6 @@ from utils.powerlaw import (
     LOWER_BOUNDED_POWER_LAW,
     compact_classification,
     format_classification_label,
-    llr_preference,
     select_best_distribution,
     select_best_other_distribution,
 )
@@ -78,7 +77,6 @@ VARIANT_TABLE_COLUMNS = [
     "best alternative",
     "R",
     "p",
-    "Result",
     "Classification",
 ]
 
@@ -378,9 +376,6 @@ def build_variant_power_law_table(
                 "best alternative": best_other_str if best_other_str else pd.NA,
                 "R": r_val if r_val is not None else pd.NA,
                 "p": p_val if p_val is not None else pd.NA,
-                "Result": llr_result_label(
-                    log_comparison, comparison_p_threshold=comparison_p_threshold
-                ),
                 "Classification": _compact_from_summary_row(
                     src,
                     log_comparison,
@@ -477,22 +472,6 @@ def abbreviate_alternative_model(name: object) -> str:
     return VARIANT_ALTERNATIVE_ABBREV.get(text, text)
 
 
-def llr_result_label(
-    comparison_df: pd.DataFrame | None,
-    *,
-    comparison_p_threshold: float = DEFAULT_SIGNIFICANCE_LEVEL,
-) -> str:
-    """Compact step-3 outcome from counted alternatives."""
-    preference = llr_preference(
-        comparison_df, significance_level=comparison_p_threshold
-    )
-    if preference == "alternative preferred":
-        return "Alt. preferred"
-    if preference == "PL preferred":
-        return "PL preferred"
-    return "Inconclusive"
-
-
 def _category_cellcolor_tex(code: str) -> str:
     hex_color = CLASSIFICATION_CELL_COLORS.get(code, CLASSIFICATION_CELL_COLORS["A"])
     return f"\\cellcolor[HTML]{{{hex_color}}} {escape_latex(code)}"
@@ -507,20 +486,20 @@ def variant_power_law_dataframe_to_latex(
     """Two-row overview header for the trace-variant power-law table."""
     gof = _format_threshold(gof_p_threshold)
     lines = [
-        r"\begin{tabular}{lrrrrcrclrrll}",
+        r"\begin{tabular}{lrrrrcrclrrl}",
         r"\toprule",
         (
             r" & \multicolumn{2}{c}{Fitting result}"
             r" & \multicolumn{3}{c}{1. Fitted types}"
             r" & \multicolumn{2}{c}{2. GOF}"
-            r" & \multicolumn{4}{c}{3. Best alternative}"
+            r" & \multicolumn{3}{c}{3. Best alternative}"
             r" & Category \\"
         ),
-        r"\cmidrule(lr){2-3}\cmidrule(lr){4-6}\cmidrule(lr){7-8}\cmidrule(lr){9-12}",
+        r"\cmidrule(lr){2-3}\cmidrule(lr){4-6}\cmidrule(lr){7-8}\cmidrule(lr){9-11}",
         (
             f"Log & $\\alpha$ & $x_{{\\min}}$ & \\# & \\% & $\\geq {minimum_fitted_types}$?"
             f" & $p_{{\\text{{GOF}}}}$ & $p_{{\\text{{GOF}}}} \\geq {gof}$"
-            f" & Model & {LLR_STATISTIC_TEX} & $p_{{\\text{{comp.}}}}$ & Result & "
+            f" & Model & {LLR_STATISTIC_TEX} & $p_{{\\text{{comp.}}}}$ & "
             r"\\"
         ),
         r"\midrule",
@@ -543,7 +522,6 @@ def variant_power_law_dataframe_to_latex(
             escape_latex(abbreviate_alternative_model(row.get("best alternative"))),
             _format_tex_decimal(row.get("R")),
             _format_tex_decimal(row.get("p")),
-            escape_latex(row.get("Result")),
             _category_cellcolor_tex(classification),
         ]
         lines.append(" & ".join(cells) + r" \\")
@@ -1293,7 +1271,7 @@ def write_variant_model_comparison_tex(
 
 _COMPARISON_SUMMARY_OUTCOMES = (
     ("other", "Other distribution significantly better"),
-    ("inconclusive", "Inconclusive"),
+    ("inconclusive", "Indistinguishable"),
     ("pl", "PL significantly better"),
 )
 
@@ -1494,7 +1472,11 @@ def best_alternative_dataframe_to_latex(
     names_df: pd.DataFrame,
     significant_df: pd.DataFrame,
 ) -> str:
-    """Render best-distribution abbreviations; bold when significant."""
+    """Render best-distribution abbreviations.
+
+    A significant alternative is bold. Power law is never bold: a power-law
+    win has no single comparison p-value.
+    """
     ordered_cols, header1_parts, header2_parts, _ngram_cols, n_k = (
         _across_logs_column_layout(names_df)
     )
@@ -1525,7 +1507,7 @@ def best_alternative_dataframe_to_latex(
                 continue
             abbrev = VARIANT_ALTERNATIVE_ABBREV.get(text, text)
             bold = False
-            if sig_row is not None:
+            if sig_row is not None and abbrev != "PL":
                 bold = str(sig_row.get(col)).strip().lower() in {"true", "1", "yes"}
             escaped = escape_latex(abbrev)
             cells.append(rf"\textbf{{{escaped}}}" if bold else escaped)

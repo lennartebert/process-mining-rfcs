@@ -1,2 +1,2 @@
-Log,alpha,x_min,fitted types,fitted type %,GOF p,best alternative,R,p,Result,Classification
-CVS,1.363828983014159,2.0,34,91.8918918918919,0.0752,stretched_exponential,-1.396232414289717,0.3029094248766167,Inconclusive,B
+Log,alpha,x_min,fitted types,fitted type %,GOF p,best alternative,R,p,Classification
+CVS,1.363828983014159,2.0,34,91.8918918918919,0.0752,stretched_exponential,-1.396232414289717,0.3029094248766167,B
